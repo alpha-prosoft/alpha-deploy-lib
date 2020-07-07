@@ -1,0 +1,99 @@
+- include_role:
+    name: alpha-deploy-lib/resolve-params
+  vars:
+    stacks: 
+    - type: BASE
+      name: alpha-base-infra  
+
+- name: "Create machine user"
+  environment: '{{ params}}'
+  when: no_secret is not defined
+  args:
+    executable: "/bin/bash"
+  shell: |
+    set -e
+
+    export username="{{ username }}"
+    export userpool_id="{{ params["AuthUserPoolId"] }}"
+    export client_id="{{ params["AuthUserPoolClientId"] }}"
+    export client_secret="$(aws cognito-idp describe-user-pool-client \
+                                     --user-pool-id ${userpool_id} \
+                                     --client-id ${client_id} \
+                                     --query 'UserPoolClient.ClientSecret' \
+                                     --output text)"
+    export tmp_password="?!?71{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
+    export new_password="?=!44{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
+    export environment_name_lower="{{ params["EnvironmentNameLower"] }}"
+    export secret_id="/${environment_name_lower}/${username}/password"
+
+    export secret_hash=$(echo -n "${username}${client_id}" \
+            | openssl dgst -sha256 -hmac "${client_secret}" -binary | base64)
+
+    user=$(aws cognito-idp admin-get-user \
+            --user-pool-id "${userpool_id}" \
+            --username "${username}" 2>/dev/null || echo "False")
+
+    if [[ "${user}" == "False" ]]; then
+      echo "User ${username} is missing, so creating it";
+      aws cognito-idp admin-create-user \
+        --user-pool-id "${userpool_id}" \
+        --username "${username}"
+
+      aws cognito-idp admin-set-user-password \
+        --user-pool-id "${userpool_id}" \
+        --username "${username}" \
+        --password "${tmp_password}"
+
+      session=$(aws cognito-idp admin-initiate-auth \
+                   --user-pool-id "${userpool_id}" \
+                   --client-id "${client_id}" \
+                   --auth-flow ADMIN_NO_SRP_AUTH \
+                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
+                   | jq -r '.Session')
+
+      aws cognito-idp  admin-respond-to-auth-challenge \
+        --user-pool-id "${userpool_id}" \
+        --client-id "${client_id}" \
+        --challenge-name NEW_PASSWORD_REQUIRED\
+        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},SECRET_HASH=${secret_hash},userAttributes.name=${username},userAttributes.email=${username}@{{ params['PrivateHostedZoneName'] }}" \
+        --session "${session}"
+
+
+      secret_value="$(aws secretsmanager get-secret-value \
+    	             --secret-id "${secret_id}" &> /dev/null || echo "False")"
+
+      if [[ "${secret_value}" == "False" ]]; then
+        echo "Secret ${secret_id} does not exist, creating it"
+        aws secretsmanager create-secret \
+          --name "${secret_id}" \
+          --secret-string ${new_password}
+      else
+        echo "Secret ${secret_id} exist, updating it"
+        aws secretsmanager put-secret-value \
+                  --secret-id  "${secret_id}" \
+                  --secret-string ${new_password}
+      fi
+    else
+      export secret_value="$(aws secretsmanager get-secret-value \
+                              --query "SecretString" --output text \
+        	              --secret-id "${secret_id}")"
+      echo ${secret_value}
+      auth=$(aws cognito-idp admin-initiate-auth \
+             --user-pool-id "${userpool_id}" \
+             --client-id "${client_id}" \
+             --auth-flow ADMIN_NO_SRP_AUTH \
+             --auth-parameters USERNAME="${username}",PASSWORD="${secret_value}",SECRET_HASH="${secret_hash}")
+    fi
+
+- name: 'Add user to groups'
+  environment: '{{ params }}'
+  args:
+    executable: "/bin/bash"
+  shell: |
+    set -e
+    aws cognito-idp admin-add-user-to-group \
+           --user-pool-id {{ params["AuthUserPoolId"] }} \
+    	   --username {{ username }} \
+    	   --group-name {{ item }}
+  loop: '{{ cognito_groups | default([], true) }}'
+  when: no_secret is not defined

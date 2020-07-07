@@ -1,0 +1,24 @@
+- name: Gathering cloudformation info
+  cloudformation_info:
+    stack_name: '{{ params["EnvironmentNameUpper"] }}-{{item.type}}-{{ item.name }}-stack'
+    region: '{{ item.region | default(params["Region"]) }}'
+  environment: '{{ params }}'
+  register: cloudformation_facts
+
+- debug:
+    msg: 'Resolving {{ item.type }}:{{ item.name }}'
+
+- debug:
+    msg: 'cloudformation_facts: {{ cloudformation_facts }}'
+
+# - debug:
+#     msg: "Print facts: {{ cloudformation_facts['cloudformation']['stack_name'] }}"
+
+- debug:
+    msg: 'Print facts: {{ cloudformation_facts["cloudformation"] }}'
+
+- set_fact: 
+    matched_stack_output: '{{ cloudformation_facts["cloudformation"][params["EnvironmentNameUpper"] + "-" + item.type + "-" + item.name + "-stack"]["stack_outputs"] | default({}) }}'
+    
+- set_fact:
+    params: '{{ params | combine( matched_stack_output ) }}'

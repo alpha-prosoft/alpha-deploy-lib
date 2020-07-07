@@ -1,0 +1,6 @@
+---
+dependencies: []
+
+galaxy_info:
+  role_name: "ewp-deploy-lib"
+  description: "ewp-deploy-lib"
