@@ -1,0 +1,6 @@
+- include_tasks: resolve.yml
+  with_items: "{{ stacks }}"
+
+- name: "Params after resolved"
+  debug:
+    var: params 

@@ -1,0 +1,46 @@
+- set_fact:
+    instance_yml: '{{ role_path }}/files/instance.yml'
+
+- name: 'Add permissions for AMI'
+  shell: |
+      aws ec2 modify-image-attribute \
+        --image-id "{{ params['AmiId'] }}" \
+        --launch-permission "Add=[{UserId={{ params['AccountId'] }}}]"
+  environment: '{{ pipeline_params  }}' 
+
+- include_role:
+    name: alpha-deploy-lib/resolve-params
+  vars:
+    stacks: 
+    - type: BASE
+      name: alpha-base-infra  
+
+- name: 'Create key pair'
+  environment: '{{ params }}' 
+  shell: |
+    set -e
+    key_name="/${EnvironmentNameLower}/{{ settings["ServiceAlias"] }}/id_rsa"
+    key=$(aws secretsmanager get-secret-value --secret-id "${key_name}" || echo '')
+    if [ -z "${key}" ]; then
+      key_material=$(aws ec2 create-key-pair --key-name "${key_name}" | jq -r '.KeyMaterial')
+
+      aws secretsmanager create-secret --name "${key_name}" || echo 'Already exists'
+      aws secretsmanager put-secret-value --secret-id "${key_name}" --secret-string "${key_material}"
+    fi
+
+- include_role:
+    name: alpha-deploy-lib/cognito-idp-add-user
+  vars:
+    username: '{{ settings["ServiceAlias"] }}'
+    cognito_groups:
+    - non-interactive
+
+
+- include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ instance_yml }}'
+    type: 'INSTANCE'
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
