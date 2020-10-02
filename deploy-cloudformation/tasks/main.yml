@@ -13,7 +13,7 @@
   shell: |
       aws cloudformation describe-stacks \
           --stack-name "{{ final_stack_name }}"  \
-          --region {{ params["Region"] }} \
+          --region {{ settings["Region"] | default(params["Region"]) }} \
           --query Stacks[].StackStatus \
           --output text 2> /dev/null || echo "ERROR"
   register: stack_status
@@ -22,7 +22,7 @@
   cloudformation:
     stack_name: '{{ final_stack_name }}'
     state: 'absent'
-    region: '{{ params["Region"] }}'
+    region: '{{ settings["Region"] | default(params["Region"]) }}'
   when: stack_status.stdout ==  "ROLLBACK_COMPLETE"
 
 - name: 'Extract CloudFormation params'
@@ -51,7 +51,7 @@
   cloudformation:
     stack_name: '{{ final_stack_name }}'
     state: 'present'
-    region: '{{ params["Region"] }}'
+    region: '{{ settings["Region"] | default(params["Region"]) }}'
     disable_rollback: false
     template: '{{ cloud_formation }}'
     template_parameters: '{{ applicable_params }}'

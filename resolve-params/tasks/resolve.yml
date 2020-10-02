@@ -1,7 +1,7 @@
 - name: Gathering cloudformation info
   cloudformation_info:
     stack_name: '{{ params["EnvironmentNameUpper"] }}-{{item.type}}-{{ item.name }}-stack'
-    region: '{{ params["Region"] }}'
+    region: '{{ item.region | default(params["Region"]) }}'
   environment: '{{ params }}'
   register: cloudformation_facts
 
