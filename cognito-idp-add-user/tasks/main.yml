@@ -16,18 +16,11 @@
     export username="{{ username }}"
     export userpool_id="{{ params["AuthUserPoolId"] }}"
     export client_id="{{ params["AuthUserPoolClientId"] }}"
-    export client_secret="$(aws cognito-idp describe-user-pool-client \
-                                     --user-pool-id ${userpool_id} \
-                                     --client-id ${client_id} \
-                                     --query 'UserPoolClient.ClientSecret' \
-                                     --output text)"
+
     export tmp_password="?!?71{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
     export new_password="?=!44{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
     export environment_name_lower="{{ params["EnvironmentNameLower"] }}"
     export secret_id="/${environment_name_lower}/${username}/password"
-
-    export secret_hash=$(echo -n "${username}${client_id}" \
-            | openssl dgst -sha256 -hmac "${client_secret}" -binary | base64)
 
     user=$(aws cognito-idp admin-get-user \
             --user-pool-id "${userpool_id}" \
@@ -48,14 +41,14 @@
                    --user-pool-id "${userpool_id}" \
                    --client-id "${client_id}" \
                    --auth-flow ADMIN_NO_SRP_AUTH \
-                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
+                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password}" \
                    | jq -r '.Session')
 
       aws cognito-idp  admin-respond-to-auth-challenge \
         --user-pool-id "${userpool_id}" \
         --client-id "${client_id}" \
         --challenge-name NEW_PASSWORD_REQUIRED\
-        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},SECRET_HASH=${secret_hash},userAttributes.name=${username},userAttributes.email=${username}@{{ params['PrivateHostedZoneName'] }}" \
+        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username},userAttributes.email=${username}@{{ params['PrivateHostedZoneName'] }}" \
         --session "${session}"
 
 
@@ -82,7 +75,7 @@
              --user-pool-id "${userpool_id}" \
              --client-id "${client_id}" \
              --auth-flow ADMIN_NO_SRP_AUTH \
-             --auth-parameters USERNAME="${username}",PASSWORD="${secret_value}",SECRET_HASH="${secret_hash}")
+             --auth-parameters "USERNAME=${username},PASSWORD=${secret_value}")
     fi
 
 - name: 'Add user to groups'
