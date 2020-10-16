@@ -1,0 +1,122 @@
+- name: 'Render index.html template'
+  template:
+    src: /dist/s3/mobile.html.template
+    dest:  /dist/s3/index.html
+
+- name: 'Create signing key'
+  shell: |
+    set -e
+    key_name="/${EnvironmentNameLower}/android/{{ params["ServiceName"] }}/key"
+    key=$(aws secretsmanager get-secret-value --secret-id "${key_name}" || echo '')
+    if [ -z "${key}" ]; then
+     keytool -genkey -v \
+                -keystore temp.keystore \
+                -alias appreleasedemoalias \
+                -validity 10000 \
+                -dname "cn=Alpha-Prosoft, o=alpha-prosoft" \
+                -storepass abcdef12 \
+                -keypass abcdef12
+      key_material=$(cat temp.keystore | base64 -w0)
+
+      aws secretsmanager create-secret --name "${key_name}"
+      aws secretsmanager put-secret-value --secret-id "${key_name}" --secret-string "${key_material}"
+      rm temp.keystore
+    fi
+    aws secretsmanager get-secret-value \
+        --secret-id "${key_name}" \
+        --query 'SecretString' \
+        --output text | base64 -d > /home/build/release.keystore
+  environment: '{{ params }}'
+
+- name: 'Build android app'
+  shell: |
+    set -e
+    cd /home/build
+    mkdir -p /home/build/www
+    cp -r /dist/s3/* /home/build/www
+   
+    sed -i 's/^\(.*\)applicationId.*$/\1applicationId = privateHelpers.extractStringFromManifest("package") + "." + "$System.env.EnvironmentNameLower"/g' \
+          platforms/android/app/build.gradle 
+
+    sed -i 's/1.0.0/1.0.{{ params["BuildId"] }}/g' config.xml 
+    cat config.xml
+    cat platforms/android/app/build.gradle
+
+    cordova build --release android -- \
+           --keystore=/home/build/release.keystore \
+           --storePassword=abcdef12 \
+           --alias=appreleasedemoalias \
+           --password=abcdef12
+
+    ls -la /home/build/platforms/android/app/build/outputs/apk/release/
+    cp /home/build/platforms/android/app/build/outputs/apk/release/app-release.apk \
+        /dist/release.apk
+  environment: '{{ params }}'
+
+- name: 'Deploy app'
+  environment: '{{ pipeline_params }}'
+  shell: |
+    set -e
+    ls -la /dist
+    key_name="/pipeline/jenkins/app-center/api-key"
+    APP_CENTER_TOKEN="$(aws secretsmanager get-secret-value --secret-id ${key_name} --output text --query 'SecretString')"
+    export APP_CENTER_TOKEN=${APP_CENTER_TOKEN}
+
+    org="Alpha-Prosoft"
+    app_name="{{ params["ServiceName"] }}-{{ params["EnvironmentNameLower"] }}"
+
+    app=$(appcenter apps show \
+                 --app "${org}/${app_name}" \
+                 --token "${APP_CENTER_TOKEN}" > /dev/null || echo "Missing")
+
+    echo "App: ${app}"
+    if [ "${app}" = "Missing" ]; then
+      appcenter orgs apps create \
+                --org-name "${org}" \
+                --display-name "${app_name}" \
+                --release-type "Beta" \
+                --os Android \
+                --platform Cordova \
+                --token "${APP_CENTER_TOKEN}" \
+                --disable-telemetry
+    fi
+
+    echo "Group: ${group}"
+    group=$(appcenter  distribute groups show \
+                       --group DEV \
+                       --token b817fc3fb8bb16ef5670ecc16fe548ce54dbb6ca \
+                       --app "${org}/${app_name}" > /dev/null || echo "Missing")
+
+    if [ "${group}" = "Missing" ]; then
+       appcenter  distribute groups create --name DEV \
+                 --token "${APP_CENTER_TOKEN}" \
+                 --testers "" \
+                 --app  "${org}/${app_name}" || echo "Already exists"
+    fi
+
+    collaborators="$(appcenter orgs collaborators list \
+                                      --name ${org} \
+                                      --token ${APP_CENTER_TOKEN} \
+                                      --output json | jq -r '[.[][2]]|join(" ")')"
+    appcenter  distribute groups update  \
+               --add-testers "" \
+               --app "${org}/${app_name}" \
+               --group "DEV" \
+               --token "${APP_CENTER_TOKEN}" \
+               --debug
+
+    appcenter  distribute groups update  \
+           --add-testers  "${collaborators}" \
+           --app "${org}/${app_name}" \
+           --group "DEV" \
+           --token "${APP_CENTER_TOKEN}" \
+           --debug
+
+    appcenter distribute release \
+            --group DEV \
+            --file /dist/release.apk \
+            --app "${org}/${app_name}" \
+            --token "${APP_CENTER_TOKEN}" \
+            --debug
+
+

@@ -1,0 +1,150 @@
+# ASCIIDOC_BEGIN
+#
+# This role is used to deploy a AWS Lambda function
+#
+# ASCIIDOC_END
+
+- include_role:
+    name: alpha-deploy-lib/resolve-params
+  vars:
+    stacks:
+      - type: "CORE"
+        name: "alpha-base"
+      - type: "DYNAMODB"
+        name: "alpha-dynamodb-svc"
+
+- set_fact:
+    params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"]  })}}'
+- set_fact:
+    params: '{{ params | combine({ "LambdaFunctionName" : function_name  })}}'
+
+- s3_bucket:
+    name: '{{ params["DeploymentS3BucketName"] }}'
+    region: "{{ params['Region'] }}"
+    tags: '{{ resource_tags }}'
+    encryption: "AES256"
+    policy: |
+      {
+       "Id":"BucketPolicy",
+       "Version":"2012-10-17",
+       "Statement" : [
+          {
+             "Sid":"OnlyHTTPS",
+             "Effect":"Deny",
+             "Principal":"*",
+             "Action":"s3:*",
+             "Resource" : [
+                "arn:aws:s3:::{{ params['DeploymentS3BucketName'] }}/*",
+                "arn:aws:s3:::{{ params['DeploymentS3BucketName'] }}"
+             ],
+             "Condition":{
+                "Bool":{
+                   "aws:SecureTransport":"false"
+                }
+             }
+          }
+       ]
+      }
+
+
+
+- include_role:
+    name: alpha-deploy-lib/cognito-idp-add-user
+  vars:
+    username: '{{ params["ServiceName"] }}'
+    cognito_groups:
+    - non-interactive
+
+- set_fact:
+    secret_json:
+
+- block:
+  - copy:
+      dest: /dist/secret.json
+      content: '{{ secrets | default({}) | combine(default_secrets) | to_nice_json  }}'
+    environment: '{{ params }}'
+  vars:
+    default_secrets:
+     db:
+       name: "alpha-dynamodb-svc"
+     svc:
+         username: "{{ params['ServiceName'] }}"
+         password: "{{ lookup('aws_secret',
+                                '/' +
+                                params['EnvironmentNameLower'] +
+                                '/' +
+                                params['ServiceName'] +
+                                '@' +
+                                params['PublicHostedZoneName'] +
+                                '/password') }}"
+     auth:
+         client-id: "{{ params['AuthUserPoolClientId'] }}"
+         user-pool-id: "{{ params['AuthUserPoolId'] }}"
+  when: no_secret is not defined
+
+- copy:
+    dest: /dist/secret.json
+    content: '{{ {} | to_nice_json  }}'
+  environment: '{{ params }}'
+  when: no_secret is defined
+
+ 
+
+- name: "Add password to lambda jar"
+  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/secret.json'
+
+- copy:
+    dest: /dist/jwks.json
+    content: '{{ lookup("url", "https://cognito-idp." + params["Region"] + ".amazonaws.com/" + params["AuthUserPoolId"] + "/.well-known/jwks.json") }}'
+  environment: '{{ params }}'
+
+- name: "Add cognito jwks to lambda"
+  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/jwks.json'
+
+
+- name: 'Upload lambda package to S3'
+  aws_s3:
+    bucket: '{{ params["DeploymentS3BucketName"] }}'
+    region: '{{ params["Region"] }}'
+    mode: put
+    src: '/dist/{{ params["ServiceName"] }}.jar'
+    object: '{{ params["S3LambdaObjectName"] }}'
+  environment: '{{ params }}'
+
+- name: 'Set lambda CF stack name fact'
+  set_fact:
+    lambda_stack_name: '{{ params["EnvironmentNameUpper"] }}-LAMBDA-{{ function_name }}-stack'
+
+- name: 'Create files dir if missing'
+  file:
+    path: '{{ role_path }}/files'
+    state: directory
+
+- name: "Render template from CF"
+  template:
+    src: 'cf-lambda-deploy.yaml'
+    dest: '{{ role_path }}/files/cf-lambda-deploy.yaml'
+  when: lambda_stack_file is not defined
+
+- name: 'Set lambda CF stack name fact'
+  set_fact:
+    lambda_stack_file: '{{ role_path }}/files/cf-lambda-deploy.yaml'
+  when:  lambda_stack_file is not defined
+
+- name: 'Deploy lambda stack'
+  include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ lambda_stack_file }}'
+    stack_name: '{{ lambda_stack_name }}'
+    local_params: '{{ settings | default({}) }}'
+    type: 'LAMBDA'
+
+- set_fact:
+    params: '{{ params | combine({ parameter_name : cloud_formation_output["stack_outputs"]["LambdaFunction"] }) }}'
+
+- set_fact:
+    params: '{{ params | combine({ parameter_name + "Role" : cloud_formation_output["stack_outputs"]["LambdaRoleName"] }) }}'
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'

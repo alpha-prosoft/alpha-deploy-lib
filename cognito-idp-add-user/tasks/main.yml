@@ -13,7 +13,7 @@
   shell: |
     set -e
 
-    export username="{{ username }}"
+    export username="{{ username }}@{{ params['PublicHostedZoneName'] }}"
     export userpool_id="{{ params["AuthUserPoolId"] }}"
     export client_id="{{ params["AuthUserPoolClientId"] }}"
 
@@ -30,6 +30,7 @@
       echo "User ${username} is missing, so creating it";
       aws cognito-idp admin-create-user \
         --user-pool-id "${userpool_id}" \
+        --user-attributes "Name=email,Value=${username}" \
         --username "${username}"
 
       aws cognito-idp admin-set-user-password \
@@ -48,7 +49,7 @@
         --user-pool-id "${userpool_id}" \
         --client-id "${client_id}" \
         --challenge-name NEW_PASSWORD_REQUIRED\
-        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username},userAttributes.email=${username}@{{ params['PrivateHostedZoneName'] }}" \
+        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username}" \
         --session "${session}"
 
 
@@ -86,7 +87,7 @@
     set -e
     aws cognito-idp admin-add-user-to-group \
            --user-pool-id {{ params["AuthUserPoolId"] }} \
-    	   --username {{ username }} \
+    	   --username "{{ username }}@{{ params['PublicHostedZoneName'] }}" \
     	   --group-name {{ item }}
   loop: '{{ cognito_groups | default([], true) }}'
   when: no_secret is not defined

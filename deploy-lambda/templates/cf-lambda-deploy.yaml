@@ -1,0 +1,726 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CF Template for Lambda function deployment"
+Parameters:
+  BuildId:
+    Type: String
+
+  EnvironmentNameLower:
+    Type: String
+
+  EnvironmentNameUpper:
+    Type: String
+
+  DeploymentS3BucketName:
+    Type: String
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 128
+
+  LambdaTimeout:
+    Type: Number
+    Default: 110
+
+  ReservedConcurrentExecutions:
+    Type: Number
+    Default: 25
+
+  LambdaFunctionHandler:
+    Type: String
+    Default: 'index.handler'
+
+  LambdaFunctionName:
+    Type: String
+
+  Region:
+    Type: String
+
+  VPCId:
+    Type: String
+
+  ServiceName:
+    Type: String
+
+  PublicHostedZoneName:
+    Type: String
+
+  PublicHostedZoneId:
+    Type: String
+
+  S3LambdaObjectName:
+    Type: String
+
+  CertificateArn:
+    Type: String
+
+
+  SubscribeDb:
+    Type: String
+    Default: "True"
+
+  EnableImport:
+    Type: String
+    Default: "False"
+
+  QueueTimeout:
+    Type: String
+    Default: "310"
+
+  AuthUserPoolId:
+    Type: String
+
+  AuthUserPoolClientId:
+    Type: String
+
+Conditions:
+  ShouldSubscribe: !Or [!Equals [ !Ref SubscribeDb, "True" ], !Equals [ !Ref SubscribeDb, "true" ] ]
+  IsEnableImport: !Or [!Equals [ !Ref EnableImport, "True" ], !Equals [ !Ref EnableImport, "true" ] ]
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      RoleName: !Sub "${EnvironmentNameUpper}-${LambdaFunctionName}-Role"
+
+  LambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: !Sub "${EnvironmentNameUpper}-${LambdaFunctionName}-Policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: BasicPolicy
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - ec2:DescribeClientVpnTargetNetworks
+              - ec2:DescribeClientVpnEndpoints
+              - ec2:ApplySecurityGroupsToClientVpnTargetNetwork
+              - ec2:DescribeClientVpnConnections
+              - ec2:TerminateClientVpnConnections
+              - s3:PutObject
+              - s3:GetObject
+              - s3:*
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - sqs:*
+            Resource: !Sub "arn:aws:sqs:${Region}:${AWS::AccountId}:${EnvironmentNameLower}*"
+          - Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+            Resource: !GetAtt CommandsQueue.Arn
+          - Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+            Resource: !GetAtt EventsQueue.Arn
+          - Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:PutItem
+            Resource: "*"
+      Roles:
+        - !Ref LambdaRole
+
+  RestAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${ServiceName}-api"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Policy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action: "execute-api:Invoke"
+            Resource: "*"
+
+  GatewayResponse401:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+      ResponseType: UNAUTHORIZED
+      RestApiId: !Ref RestAPI
+      StatusCode: "401"
+
+  UserPoolAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      IdentitySource: method.request.header.X-Authorization
+      Name: !Sub '${EnvironmentNameUpper}-access-authorizer'
+      ProviderARNs:
+        - !Sub 'arn:aws:cognito-idp:${Region}:${AWS::AccountId}:userpool/${AuthUserPoolId}'
+      RestApiId: !Ref RestAPI
+      Type: COGNITO_USER_POOLS
+
+  GatewayResponse403:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+      ResponseType: ACCESS_DENIED
+      RestApiId: !Ref RestAPI
+      StatusCode: "403"
+
+  CommandFunctionApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: 'command'
+      RestApiId: !Ref RestAPI
+
+  QeuryFunctionApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: 'query'
+      RestApiId: !Ref RestAPI
+
+  CommandsFunctionApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: 'commands'
+      RestApiId: !Ref RestAPI
+
+  ApiGatewayLambdaInvocationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  ApiGatewayLambdaInvocationPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: !Sub "${ServiceName}-API-Policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: "*"
+      Roles:
+        - !Ref ApiGatewayLambdaInvocationRole
+
+  CommandFunctionApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        ConnectionType: INTERNET
+        Credentials:  !GetAtt ApiGatewayLambdaInvocationRole.Arn
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri:  !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+      OperationName: 'lambda'
+      ResourceId: !Ref CommandFunctionApiGatewayResource
+      RestApiId: !Ref RestAPI
+
+  CommandsFunctionApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        ConnectionType: INTERNET
+        Credentials:  !GetAtt ApiGatewayLambdaInvocationRole.Arn
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri:  !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+      OperationName: 'lambda'
+      ResourceId: !Ref CommandsFunctionApiGatewayResource
+      RestApiId: !Ref RestAPI
+
+  QeuryFunctionApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        ConnectionType: INTERNET
+        Credentials: !GetAtt ApiGatewayLambdaInvocationRole.Arn
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+      OperationName: 'lambda'
+      ResourceId: !Ref QeuryFunctionApiGatewayResource
+      RestApiId: !Ref RestAPI
+
+  CommandOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId:
+        Ref: RestAPI
+      ResourceId:
+        Ref: CommandFunctionApiGatewayResource
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'X-Authorization,pragma,cache-control,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  CommandsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId:
+        Ref: RestAPI
+      ResourceId:
+        Ref: CommandsFunctionApiGatewayResource
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'X-Authorization,pragma,cache-control,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  QueryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId:
+        Ref: RestAPI
+      ResourceId:
+        Ref: QeuryFunctionApiGatewayResource
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'X-Authorization,pragma,cache-control,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  MetaApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: 'meta'
+      RestApiId: !Ref RestAPI
+
+  PingApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref MetaApiGatewayResource
+      PathPart: 'ping'
+      RestApiId: !Ref RestAPI
+
+  PingMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId:
+        Ref: RestAPI
+      ResourceId:
+        Ref: PingApiGatewayResource
+      HttpMethod: GET
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'X-Authorization,pragma,cache-control,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: '{"message": "Pong"}'
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+
+  RestAPIStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId:
+        Ref: RestAPIDeployment{{ BuildId }}
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          ResourcePath: "/*"
+      RestApiId:
+        Ref: RestAPI
+      StageName: !Sub "${EnvironmentNameUpper}"
+
+  RestAPIDeployment{{ BuildId }}:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - RestAPI
+      - QeuryFunctionApiGatewayResource
+      - CommandFunctionApiGatewayResource
+      - CommandsFunctionApiGatewayResource
+      - CommandOptionsMethod
+      - CommandsOptionsMethod
+      - QueryOptionsMethod
+      - QeuryFunctionApiGatewayMethod
+      - CommandFunctionApiGatewayMethod
+      - CommandsFunctionApiGatewayMethod
+    Properties:
+      Description: !Sub "To deploy ${RestAPI}, ${QeuryFunctionApiGatewayMethod} and ${CommandFunctionApiGatewayResource}"
+      RestApiId: !Ref RestAPI
+
+  DomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      RegionalCertificateArn: !Ref CertificateArn
+      DomainName: !Sub '${ServiceName}.${PublicHostedZoneName}'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  DomainMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn: RestAPIStage
+    Properties:
+      DomainName: !Ref DomainName
+      RestApiId: !Ref RestAPI
+      Stage: !Sub "${EnvironmentNameUpper}"
+
+  DomainDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref PublicHostedZoneId
+      Name: !Sub '${ServiceName}.${PublicHostedZoneName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt DomainName.RegionalDomainName
+        HostedZoneId: !GetAtt DomainName.RegionalHostedZoneId
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    DependsOn:
+      - LambdaPolicy
+    Properties:
+      FunctionName: !Sub "${EnvironmentNameUpper}-${LambdaFunctionName}"
+      Handler: !Sub "${LambdaFunctionHandler}"
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: provided
+      MemorySize: !Sub "${LambdaMemorySize}"
+      Timeout: !Sub "${LambdaTimeout}"
+      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
+      TracingConfig:
+        Mode: "PassThrough"
+      Code:
+        S3Bucket: !Sub "${DeploymentS3BucketName}"
+        S3Key: !Sub "${S3LambdaObjectName}"
+      Environment:
+        Variables:
+          EnvironmentNameUpper: !Ref EnvironmentNameUpper
+          EnvironmentNameLower: !Ref EnvironmentNameLower
+          PublicHostedZoneName: !Ref PublicHostedZoneName
+          AuthUserPoolId: !Ref AuthUserPoolId
+          AuthUserPoolClientId: !Ref AuthUserPoolClientId
+          ServiceName: !Ref ServiceName
+          Region: !Ref Region
+          BuildId: !Ref BuildId
+          AccountId: !Sub "${AWS::AccountId}"
+
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: elasticloadbalancing.amazonaws.com
+
+  CommandsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-${ServiceName}-commands"
+      DelaySeconds: 0
+      VisibilityTimeout: !Ref QueueTimeout
+
+  EventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-${ServiceName}-events"
+      DelaySeconds: 0
+      VisibilityTimeout: !Ref QueueTimeout
+
+  EventsQueueLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt EventsQueue.Arn
+      FunctionName: !Ref LambdaFunction
+
+  CommandsQueueLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt CommandsQueue.Arn
+      FunctionName: !Ref LambdaFunction
+
+  EventsQueuePermissions:
+    Type: AWS::SQS::QueuePolicy
+    Condition: ShouldSubscribe
+    DependsOn:
+      - LambdaPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sqs:SendMessage
+            Principal: "*"
+            Resource: !GetAtt EventsQueue.Arn
+      Queues:
+        - !Ref EventsQueue
+
+  CommandsQueuePermissions:
+    Type: AWS::SQS::QueuePolicy
+    Condition: ShouldSubscribe
+    DependsOn:
+      - LambdaPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sqs:SendMessage
+            Principal: "*"
+            Resource: !GetAtt CommandsQueue.Arn
+      Queues:
+        - !Ref CommandsQueue
+
+  EventsSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: true
+      BatchSize: 1
+      EventSourceArn: !GetAtt EventsQueue.Arn
+      FunctionName: !Ref LambdaFunction
+
+  CommandsSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: true
+      BatchSize: 1
+      EventSourceArn: !GetAtt CommandsQueue.Arn
+      FunctionName: !Ref LambdaFunction
+
+
+  BucketLambdaPermissions:
+    Type: AWS::Lambda::Permission
+    Condition: IsEnableImport
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn:  !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-import'
+      SourceAccount: !Ref AWS::AccountId
+
+  LambdaBucketPolicy:
+    Type: AWS::IAM::Policy
+    Condition: IsEnableImport
+    Properties:
+      PolicyName: LambdaBuckerImportPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Resource: !GetAtt Bucket.Arn
+      Roles:
+        - !Ref LambdaRole
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Condition: IsEnableImport
+    DependsOn:
+      - S3QueuePermissions
+    Properties:
+      BucketName: !Sub '${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}'
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt S3Queue.Arn
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+ 
+  BucketPolicyData:
+    Type: AWS::S3::BucketPolicy
+    Condition: IsEnableImport
+    Properties:
+      PolicyDocument:
+        Id: BucketPolicy 
+        Version: 2012-10-17
+        Statement:
+          - Sid: "OnlyHTTPS"
+            Action: s3:*
+            Effect: Deny 
+            Principal: "*"
+            Resource: 
+            - !Sub "arn:aws:s3:::${Bucket}/*"
+            - !Sub "arn:aws:s3:::${Bucket}"
+            Condition:
+              Bool:
+                aws:SecureTransport: false 
+          - Sid: ReadWrite
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:*
+            Resource:
+            - !Sub "arn:aws:s3:::${Bucket}/*"
+            - !Sub "arn:aws:s3:::${Bucket}"
+            Condition:
+              StringLike:
+                "aws:PrincipalArn": !Sub "arn:aws:iam::${AWS::AccountId}:role/${EnvironmentNameUpper}-${ServiceName}-*"
+      Bucket: !Ref Bucket
+ 
+  S3Queue:
+    Type: AWS::SQS::Queue
+    Condition: IsEnableImport
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-${ServiceName}-s3"
+      DelaySeconds: 0
+      VisibilityTimeout: 120
+
+  S3QueueLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsEnableImport
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt S3Queue.Arn
+      FunctionName: !Ref LambdaFunction
+
+  S3QueueSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: IsEnableImport
+    Properties:
+      Enabled: true
+      BatchSize: 1
+      EventSourceArn: !GetAtt S3Queue.Arn
+      FunctionName: !Ref LambdaFunction
+
+  S3QueuePermissions:
+    Type: AWS::SQS::QueuePolicy
+    Condition: IsEnableImport
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sqs:SendMessage
+            Principal: "*"
+            Resource: !GetAtt S3Queue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}'
+
+      Queues:
+        - !Ref S3Queue
+
+
+Outputs:
+  LambdaFunction:
+    Description: Arn of the lambda function
+    Value: !GetAtt LambdaFunction.Arn
+  LambdaRoleArn:
+    Description: Arn of the lambda function
+    Value: !GetAtt LambdaRole.Arn
+  LambdaRoleName:
+    Value: !Ref LambdaRole

@@ -1,0 +1,58 @@
+- include_role:
+    name: alpha-deploy-lib/resolve-params
+  vars:
+    stacks:
+    - type: CORE
+      name: alpha-base
+
+- set_fact:
+    files: "{{ role_path }}/files"
+ 
+- include_role: 
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ files }}/web.yml'
+    type: WEB
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
+
+- set_fact:
+    web_config:
+      ServiceName: '{{ params["ServiceName"] }}'
+      EnvironmentNameLower: '{{ params["EnvironmentNameLower"] }}'
+      EnvironmentNameUpper: '{{ params["EnvironmentNameUpper"] }}'
+      AuthUserPoolDomain: '{{ params["AuthUserPoolDomain"] }}'
+      AuthUserPoolId: '{{ params["AuthUserPoolId"] }}'
+      AuthUserPoolClientId: '{{ params["AuthUserPoolClientId"] }}'
+      PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
+      Region: '{{ params["Region"] }}'
+
+- name: 'Render index.html template'
+  template:
+    src: /dist/s3/index.html.template
+    dest:  /dist/s3/index.html
+
+- name: 'Copy s3 content to bucket'
+  environment: '{{ params }}'
+  s3_sync:
+    region: '{{ params["Region"] }}'
+    bucket: '{{ params["S3BucketName"] }}'
+    file_root: '/dist/s3'
+    file_change_strategy: force
+    delete: true
+    mime_map:
+      .js: application/javascript
+      .json: application/json
+      .css: text/css
+      .html: text/html
+      .svg: image/svg+xml
+      .svgz: image/svg+xml
+      .ico: image/x-icon
+
+- name: 'InvalidateCache'
+  cloudfront_invalidation:
+    distribution_id: '{{ params["CloudFrontDistributionId"] }}'
+    caller_reference: '{{ params["ServiceName"] }}-{{ params["BuildId"] }}'
+    target_paths:
+      - "/*"
