@@ -34,7 +34,8 @@
     cd /home/build
     mkdir -p /home/build/www
     cp -r /dist/s3/* /home/build/www
-   
+
+    sed 's/<name>\(.*\)<\/name>/<name>\1 {{ params["EnvironmentNameUpper"] }}<\/name>/g' config-orig.xml > config.xml
     sed -i 's/^\(.*\)applicationId.*$/\1applicationId = privateHelpers.extractStringFromManifest("package") + "." + "$System.env.EnvironmentNameLower"/g' \
           platforms/android/app/build.gradle 
 
