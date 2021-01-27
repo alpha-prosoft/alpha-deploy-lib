@@ -30,7 +30,7 @@
       echo "User ${username} is missing, so creating it";
       aws cognito-idp admin-create-user \
         --user-pool-id "${userpool_id}" \
-        --user-attributes "Name=email,Value=${username}" \
+        --user-attributes "Name=email,Value=${username}" "Name=email_verified,Value=True" \
         --username "${username}"
 
       aws cognito-idp admin-set-user-password \
