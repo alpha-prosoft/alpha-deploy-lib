@@ -72,6 +72,16 @@ Parameters:
   AuthUserPoolClientId:
     Type: String
 
+  IndexDomainEndpoint:
+    Type: String
+
+  PrivateSubnet1A:
+    Type: String
+  PrivateSubnet2A:
+    Type: String
+  LambdaSecurityGroup:
+    Type: String
+
 Conditions:
   ShouldSubscribe: !Or [!Equals [ !Ref SubscribeDb, "True" ], !Equals [ !Ref SubscribeDb, "true" ] ]
   IsEnableImport: !Or [!Equals [ !Ref EnableImport, "True" ], !Equals [ !Ref EnableImport, "true" ] ]
@@ -500,6 +510,12 @@ Resources:
       Code:
         S3Bucket: !Sub "${DeploymentS3BucketName}"
         S3Key: !Sub "${S3LambdaObjectName}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+         - !Ref PrivateSubnet1A
+         - !Ref PrivateSubnet2A
       Environment:
         Variables:
           EnvironmentNameUpper: !Ref EnvironmentNameUpper
@@ -511,6 +527,7 @@ Resources:
           Region: !Ref Region
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
+          IndexDomainEndpoint: !Sub "${IndexDomainEndpoint}"
 
 
   LambdaInvokePermission:

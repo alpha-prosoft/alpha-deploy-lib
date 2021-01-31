@@ -12,6 +12,9 @@
         name: "alpha-base"
       - type: "DYNAMODB"
         name: "alpha-dynamodb-svc"
+      - type: "ELK"
+        name: "alpha-index-svc"
+
 
 - set_fact:
     params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"]  })}}'
@@ -130,6 +133,7 @@
   set_fact:
     lambda_stack_file: '{{ role_path }}/files/cf-lambda-deploy.yaml'
   when:  lambda_stack_file is not defined
+
 
 - name: 'Deploy lambda stack'
   include_role:
