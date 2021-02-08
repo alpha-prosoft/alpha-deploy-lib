@@ -79,12 +79,26 @@ Parameters:
     Type: String
   PrivateSubnet2A:
     Type: String
+
   LambdaSecurityGroup:
     Type: String
 
+  CustomConfig:
+    Type: String
+
+  Deployment:
+    Type: String
+    Default: "VPC"
+
+  CustomPolicy:
+    Type: String
+    Default: ""
+
 Conditions:
-  ShouldSubscribe: !Or [!Equals [ !Ref SubscribeDb, "True" ], !Equals [ !Ref SubscribeDb, "true" ] ]
-  IsEnableImport: !Or [!Equals [ !Ref EnableImport, "True" ], !Equals [ !Ref EnableImport, "true" ] ]
+  ShouldSubscribe: !Or [ !Equals [ !Ref SubscribeDb, "True" ], !Equals [ !Ref SubscribeDb, "true" ] ]
+  IsEnableImport: !Or [ !Equals [ !Ref EnableImport, "True" ], !Equals [ !Ref EnableImport, "true" ] ]
+  IsInVpc: !Equals [ !Ref Deployment, "VPC" ]
+  HasCustmPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ] ]
 
 Resources:
   LambdaRole:
@@ -149,6 +163,15 @@ Resources:
               - dynamodb:Query
               - dynamodb:PutItem
             Resource: "*"
+      Roles:
+        - !Ref LambdaRole
+
+  CustomLambdaPolicy:
+    Type: "AWS::IAM::Policy"
+    Condition: HasCustmPolicy
+    Properties:
+      PolicyName: !Sub "${EnvironmentNameUpper}-${LambdaFunctionName}-CustomPolicy"
+      PolicyDocument: !Ref CustomPolicy
       Roles:
         - !Ref LambdaRole
 
@@ -251,12 +274,12 @@ Resources:
       AuthorizationType: NONE
       Integration:
         ConnectionType: INTERNET
-        Credentials:  !GetAtt ApiGatewayLambdaInvocationRole.Arn
+        Credentials: !GetAtt ApiGatewayLambdaInvocationRole.Arn
         IntegrationHttpMethod: POST
         PassthroughBehavior: WHEN_NO_MATCH
         TimeoutInMillis: 29000
         Type: AWS_PROXY
-        Uri:  !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
       OperationName: 'lambda'
       ResourceId: !Ref CommandFunctionApiGatewayResource
       RestApiId: !Ref RestAPI
@@ -269,12 +292,12 @@ Resources:
       AuthorizationType: NONE
       Integration:
         ConnectionType: INTERNET
-        Credentials:  !GetAtt ApiGatewayLambdaInvocationRole.Arn
+        Credentials: !GetAtt ApiGatewayLambdaInvocationRole.Arn
         IntegrationHttpMethod: POST
         PassthroughBehavior: WHEN_NO_MATCH
         TimeoutInMillis: 29000
         Type: AWS_PROXY
-        Uri:  !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
       OperationName: 'lambda'
       ResourceId: !Ref CommandsFunctionApiGatewayResource
       RestApiId: !Ref RestAPI
@@ -510,12 +533,14 @@ Resources:
       Code:
         S3Bucket: !Sub "${DeploymentS3BucketName}"
         S3Key: !Sub "${S3LambdaObjectName}"
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-         - !Ref PrivateSubnet1A
-         - !Ref PrivateSubnet2A
+      VpcConfig: !If
+        - IsInVpc
+        - SecurityGroupIds:
+            - !Ref LambdaSecurityGroup
+          SubnetIds:
+            - !Ref PrivateSubnet1A
+            - !Ref PrivateSubnet2A
+        - !Ref AWS::NoValue
       Environment:
         Variables:
           EnvironmentNameUpper: !Ref EnvironmentNameUpper
@@ -528,6 +553,7 @@ Resources:
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
           IndexDomainEndpoint: !Sub "${IndexDomainEndpoint}"
+          CustomConfig: !Ref CustomConfig
 
 
   LambdaInvokePermission:
@@ -621,7 +647,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref LambdaFunction
       Principal: s3.amazonaws.com
-      SourceArn:  !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-import'
+      SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-import'
       SourceAccount: !Ref AWS::AccountId
 
   LambdaBucketPolicy:
@@ -656,38 +682,38 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
- 
+
   BucketPolicyData:
     Type: AWS::S3::BucketPolicy
     Condition: IsEnableImport
     Properties:
       PolicyDocument:
-        Id: BucketPolicy 
+        Id: BucketPolicy
         Version: 2012-10-17
         Statement:
           - Sid: "OnlyHTTPS"
             Action: s3:*
-            Effect: Deny 
+            Effect: Deny
             Principal: "*"
-            Resource: 
-            - !Sub "arn:aws:s3:::${Bucket}/*"
-            - !Sub "arn:aws:s3:::${Bucket}"
+            Resource:
+              - !Sub "arn:aws:s3:::${Bucket}/*"
+              - !Sub "arn:aws:s3:::${Bucket}"
             Condition:
               Bool:
-                aws:SecureTransport: false 
+                aws:SecureTransport: false
           - Sid: ReadWrite
             Effect: Allow
             Principal: "*"
             Action:
               - s3:*
             Resource:
-            - !Sub "arn:aws:s3:::${Bucket}/*"
-            - !Sub "arn:aws:s3:::${Bucket}"
+              - !Sub "arn:aws:s3:::${Bucket}/*"
+              - !Sub "arn:aws:s3:::${Bucket}"
             Condition:
               StringLike:
                 "aws:PrincipalArn": !Sub "arn:aws:iam::${AWS::AccountId}:role/${EnvironmentNameUpper}-${ServiceName}-*"
       Bucket: !Ref Bucket
- 
+
   S3Queue:
     Type: AWS::SQS::Queue
     Condition: IsEnableImport

@@ -21,6 +21,10 @@
 - set_fact:
     params: '{{ params | combine({ "LambdaFunctionName" : function_name  })}}'
 
+- set_fact:
+    params: '{{ params | combine({ "CustomPolicy" : (custom_policy | to_json)  })}}'
+  when: custom_policy is defined
+
 - s3_bucket:
     name: '{{ params["DeploymentS3BucketName"] }}'
     region: "{{ params['Region'] }}"
@@ -141,7 +145,7 @@
   vars:
     cloud_formation: '{{ lambda_stack_file }}'
     stack_name: '{{ lambda_stack_name }}'
-    local_params: '{{ settings | default({}) }}'
+    local_params: '{{ settings | default({}) | combine({"CustomConfig" : (custom_config | default({}) | to_json)}) }}'
     type: 'LAMBDA'
 
 - set_fact:
