@@ -65,6 +65,14 @@
 - set_fact:
     secret_json:
 
+- name: 'Get client secret'
+  shell: |
+    aws cognito-idp describe-user-pool-client \
+      --user-pool-id "{{ params['AuthUserPoolId'] }}" \
+      --client-id "{{ params['AuthUserPoolClientId'] }}" \
+      --query "UserPoolClient.ClientSecret" --output text
+  register: client_secret
+
 - block:
   - copy:
       dest: /dist/secret.json
@@ -86,6 +94,7 @@
                                 '/password') }}"
      auth:
          client-id: "{{ params['AuthUserPoolClientId'] }}"
+         client-secret: "{{ client_secret.stdout }}"
          user-pool-id: "{{ params['AuthUserPoolId'] }}"
   when: no_secret is not defined
 
@@ -138,6 +147,13 @@
     lambda_stack_file: '{{ role_path }}/files/cf-lambda-deploy.yaml'
   when:  lambda_stack_file is not defined
 
+- name: 'Deploy mapping if exits'
+  environment: '{{ params }}'
+  execute_lambda:
+    name: '{{ params["EnvironmentNameUpper"] }}-alpha-index-svc'
+    payload:
+      index-name:  '{{ params["ServiceName"] | regex_replace("-", "_") }}'
+      mapping: '{{ lookup("file", playbook_dir + "/files/mapping.json", errors="ignore") | default("Missing", true) }}'
 
 - name: 'Deploy lambda stack'
   include_role:

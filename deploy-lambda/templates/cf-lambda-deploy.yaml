@@ -546,6 +546,7 @@ Resources:
           EnvironmentNameUpper: !Ref EnvironmentNameUpper
           EnvironmentNameLower: !Ref EnvironmentNameLower
           PublicHostedZoneName: !Ref PublicHostedZoneName
+          PrivateHostedZoneName: !Ref PublicHostedZoneName
           AuthUserPoolId: !Ref AuthUserPoolId
           AuthUserPoolClientId: !Ref AuthUserPoolClientId
           ServiceName: !Ref ServiceName

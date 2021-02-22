@@ -24,7 +24,7 @@
       EnvironmentNameUpper: '{{ params["EnvironmentNameUpper"] }}'
       AuthUserPoolDomain: '{{ params["AuthUserPoolDomain"] }}'
       AuthUserPoolId: '{{ params["AuthUserPoolId"] }}'
-      AuthUserPoolClientId: '{{ params["AuthUserPoolClientId"] }}'
+      AuthUserPoolClientId: '{{ params["WebUserPoolClientId"] }}'
       PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       Region: '{{ params["Region"] }}'
 

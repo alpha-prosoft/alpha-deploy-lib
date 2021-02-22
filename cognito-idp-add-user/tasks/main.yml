@@ -26,6 +26,13 @@
             --user-pool-id "${userpool_id}" \
             --username "${username}" 2>/dev/null || echo "False")
 
+    client_secret=$(aws cognito-idp describe-user-pool-client \
+                          --user-pool-id "{{ params['AuthUserPoolId'] }}" \
+                          --client-id "{{ params['AuthUserPoolClientId'] }}" \
+                          --query "UserPoolClient.ClientSecret" --output text)
+    export secret_hash=$(echo -n "${username}${client_id}" \
+                          | openssl dgst -sha256 -hmac "${client_secret}" -binary | base64)
+
     if [[ "${user}" == "False" ]]; then
       echo "User ${username} is missing, so creating it";
       aws cognito-idp admin-create-user \
@@ -42,7 +49,7 @@
                    --user-pool-id "${userpool_id}" \
                    --client-id "${client_id}" \
                    --auth-flow ADMIN_NO_SRP_AUTH \
-                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password}" \
+                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
                    | jq -r '.Session')
 
       aws cognito-idp  admin-respond-to-auth-challenge \
@@ -70,13 +77,13 @@
     else
       export secret_value="$(aws secretsmanager get-secret-value \
                               --query "SecretString" --output text \
-        	              --secret-id "${secret_id}")"
+        	                  --secret-id "${secret_id}")"
       echo ${secret_value}
       auth=$(aws cognito-idp admin-initiate-auth \
              --user-pool-id "${userpool_id}" \
              --client-id "${client_id}" \
              --auth-flow ADMIN_NO_SRP_AUTH \
-             --auth-parameters "USERNAME=${username},PASSWORD=${secret_value}")
+             --auth-parameters "USERNAME=${username},PASSWORD=${secret_value},SECRET_HASH=${secret_hash}")
     fi
 
 - name: 'Add user to groups'
