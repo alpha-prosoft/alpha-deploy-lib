@@ -60,7 +60,7 @@
   vars:
     username: '{{ params["ServiceName"] }}'
     cognito_groups:
-    - non-interactive
+      - non-interactive
 
 - set_fact:
     secret_json:
@@ -74,17 +74,17 @@
   register: client_secret
 
 - block:
-  - copy:
-      dest: /dist/secret.json
-      content: '{{ secrets | default({}) | combine(default_secrets) | to_nice_json  }}'
-    environment: '{{ params }}'
+    - copy:
+        dest: /dist/secret.json
+        content: '{{ secrets | default({}) | combine(default_secrets) | to_nice_json  }}'
+      environment: '{{ params }}'
   vars:
     default_secrets:
-     db:
-       name: "alpha-dynamodb-svc"
-     svc:
-         username: "{{ params['ServiceName'] }}"
-         password: "{{ lookup('aws_secret',
+      db:
+        name: "alpha-dynamodb-svc"
+      svc:
+        username: "{{ params['ServiceName'] }}@{{ params['PublicHostedZoneName'] }}"
+        password: "{{ lookup('aws_secret',
                                 '/' +
                                 params['EnvironmentNameLower'] +
                                 '/' +
@@ -92,10 +92,15 @@
                                 '@' +
                                 params['PublicHostedZoneName'] +
                                 '/password') }}"
-     auth:
-         client-id: "{{ params['AuthUserPoolClientId'] }}"
-         client-secret: "{{ client_secret.stdout }}"
-         user-pool-id: "{{ params['AuthUserPoolId'] }}"
+      auth:
+        client-id: "{{ params['AuthUserPoolClientId'] }}"
+        client-secret: "{{ client_secret.stdout }}"
+        user-pool-id: "{{ params['AuthUserPoolId'] }}"
+        authorized-pools:
+            - user-pool-id: "{{ params['AuthUserPoolId'] }}"
+              client-id: "{{ params['WebUserPoolClientId'] }}"
+            - user-pool-id: "{{ params['AdminUserPoolId'] }}"
+              client-id: "{{ params['AdminUserPoolClientId'] }}"
   when: no_secret is not defined
 
 - copy:
@@ -104,14 +109,20 @@
   environment: '{{ params }}'
   when: no_secret is defined
 
- 
+
 
 - name: "Add password to lambda jar"
   shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/secret.json'
 
-- copy:
-    dest: /dist/jwks.json
-    content: '{{ lookup("url", "https://cognito-idp." + params["Region"] + ".amazonaws.com/" + params["AuthUserPoolId"] + "/.well-known/jwks.json") }}'
+- name: 'Download jwks'
+  args:
+    executable: /bin/bash
+  shell: |
+    url_1="https://cognito-idp.{{ params['Region'] }}.amazonaws.com/{{ params['AuthUserPoolId'] }}/.well-known/jwks.json"
+    url_2="https://cognito-idp.{{ params['Region'] }}.amazonaws.com/{{ params['AdminUserPoolId'] }}/.well-known/jwks.json"
+    k_1=$(curl $url_1 | jq -r '.keys')
+    k_2=$(curl $url_2 | jq -r '.keys')
+    echo "{\"keys\" : $(jq --argjson arr1 "$k_1" --argjson arr2 "$k_2" -n '$arr2 + $arr1')}" > /dist/jwks.json
   environment: '{{ params }}'
 
 - name: "Add cognito jwks to lambda"
@@ -145,14 +156,14 @@
 - name: 'Set lambda CF stack name fact'
   set_fact:
     lambda_stack_file: '{{ role_path }}/files/cf-lambda-deploy.yaml'
-  when:  lambda_stack_file is not defined
+  when: lambda_stack_file is not defined
 
 - name: 'Deploy mapping if exits'
   environment: '{{ params }}'
   execute_lambda:
     name: '{{ params["EnvironmentNameUpper"] }}-alpha-index-svc'
     payload:
-      index-name:  '{{ params["ServiceName"] | regex_replace("-", "_") }}'
+      index-name: '{{ params["ServiceName"] | regex_replace("-", "_") }}'
       mapping: '{{ lookup("file", playbook_dir + "/files/mapping.json", errors="ignore") | default("Missing", true) }}'
 
 - name: 'Deploy lambda stack'
