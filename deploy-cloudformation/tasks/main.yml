@@ -1,4 +1,13 @@
 - set_fact:
+    params_old: '{{ params }}'
+
+- name: 'Add settings to params'
+  set_fact:
+    params: '{{ params | combine({ item.key : item.value }) }}'
+  with_dict: '{{ settings }}'
+  when: settings is defined
+
+- set_fact:
     params: '{{ params | default([]) | combine(local_params) }}'
   when:
     local_params is defined
@@ -38,14 +47,17 @@
   with_items: '{{ valid_params.stdout_lines  }}'
   when: item in params
 
-- name: 'Add settings to params'
-  set_fact:
-    applicable_params: '{{ applicable_params | combine({ item.key : item.value }) }}'
-  with_dict: '{{ settings }}'
-  when: settings is defined
 
 - debug:
     var: applicable_params
+
+- tempfile:
+    state: file
+  register: cf_temp_file
+
+- template:
+    src: '{{ cloud_formation }}'
+    dest: '{{ cf_temp_file.path }}'
 
 - name: 'Deploy cloudformation stack'
   cloudformation:
@@ -53,11 +65,12 @@
     state: 'present'
     region: '{{ settings["Region"] | default(params["Region"]) }}'
     disable_rollback: false
-    template: '{{ cloud_formation }}'
+    template: '{{ cf_temp_file.path }}'
     template_parameters: '{{ applicable_params }}'
     tags: '{{ resource_tags }}'
     capabilities: '{{ params.get("Capabilities", omit) }}'
   environment: '{{ params }}'
   register: cloud_formation_output
 
-
+- set_fact:
+    params: '{{ params_old }}'
