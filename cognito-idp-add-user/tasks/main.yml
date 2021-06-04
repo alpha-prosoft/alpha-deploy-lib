@@ -14,6 +14,8 @@
     set -euo pipefail
 
     export username="{{ username }}@{{ params['PublicHostedZoneName'] }}"
+
+    echo "User: ${username}";
     export userpool_id="{{ params["AuthUserPoolId"] }}"
     export client_id="{{ params["AuthUserPoolClientId"] }}"
 
@@ -32,6 +34,8 @@
                           --query "UserPoolClient.ClientSecret" --output text)
     export secret_hash=$(echo -n "${username}${client_id}" \
                           | openssl dgst -sha256 -hmac "${client_secret}" -binary | base64)
+
+    echo "Cognito user: ${user}"
 
     if [[ "${user}" == "False" ]]; then
       echo "User ${username} is missing, so creating it";
@@ -76,6 +80,7 @@
                   --secret-string ${new_password}
       fi
     else
+      echo "Login existing user"
       export secret_value="$(aws secretsmanager get-secret-value \
                               --query "SecretString" --output text \
         	                  --secret-id "${secret_id}")"
