@@ -52,6 +52,7 @@
                    --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
                    --output text --query 'Session')                                                                                         
 
+      echo "Session: $session"
       aws cognito-idp  admin-respond-to-auth-challenge \
         --user-pool-id "${userpool_id}" \
         --client-id "${client_id}" \
