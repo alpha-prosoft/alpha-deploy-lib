@@ -56,8 +56,8 @@
       aws cognito-idp  admin-respond-to-auth-challenge \
         --user-pool-id "${userpool_id}" \
         --client-id "${client_id}" \
-        --challenge-name NEW_PASSWORD_REQUIRED\
-        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username}" \
+        --challenge-name NEW_PASSWORD_REQUIRED \
+        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username},SECRET_HASH=${secret_hash}" \
         --session "${session}"
 
 
