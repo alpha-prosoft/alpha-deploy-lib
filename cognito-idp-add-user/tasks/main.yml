@@ -11,7 +11,7 @@
   args:
     executable: "/bin/bash"
   shell: |
-    set -e
+    set -euo pipefail
 
     export username="{{ username }}@{{ params['PublicHostedZoneName'] }}"
     export userpool_id="{{ params["AuthUserPoolId"] }}"
@@ -50,7 +50,7 @@
                    --client-id "${client_id}" \
                    --auth-flow ADMIN_NO_SRP_AUTH \
                    --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
-                   | jq -r '.Session')
+                   --output text --query 'Session')                                                                                         
 
       aws cognito-idp  admin-respond-to-auth-challenge \
         --user-pool-id "${userpool_id}" \
