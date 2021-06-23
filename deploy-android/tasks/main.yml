@@ -1,6 +1,6 @@
 - name: 'Render index.html template'
   template:
-    src: /dist/s3/mobile.html.template
+    src: /dist/s3/mobile.html
     dest:  /dist/s3/index.html
 
 - name: 'Create signing key'
