@@ -26,6 +26,7 @@
       AuthUserPoolId: '{{ params["AuthUserPoolId"] }}'
       AuthUserPoolClientId: '{{ params["WebUserPoolClientId"] }}'
       PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
+      HostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       Region: '{{ params["Region"] }}'
 
 - name: 'Check if ther is index.html temlate'
