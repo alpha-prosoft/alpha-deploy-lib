@@ -1,18 +1,23 @@
+- shell: |
+    mv /dist/s3/index.html /dist/s3/index.j2.html
+
 - name: 'Render index.html template'
   template:
-    src: /dist/template/mobile.html
+    src: /dist/s3/index.j2.html
     dest:  /dist/s3/index.html
 
 - name: 'Create signing key'
   shell: |
     set -e
-    key_name="/${EnvironmentNameLower}/android/{{ params["ServiceName"] }}/key"
+    key_name="/${EnvironmentNameLower}/android/{{ params["ServiceName"] }}/key-rsa"
     key=$(aws secretsmanager get-secret-value --secret-id "${key_name}" || echo '')
     if [ -z "${key}" ]; then
      keytool -genkey -v \
                 -keystore temp.keystore \
                 -alias appreleasedemoalias \
                 -validity 10000 \
+                -keysize 2048 \
+                -keyalg RSA \
                 -dname "cn=Alpha-Prosoft, o=alpha-prosoft" \
                 -storepass abcdef12 \
                 -keypass abcdef12
@@ -35,6 +40,7 @@
     mkdir -p /home/build/www
     cp -r /dist/s3/* /home/build/www
 
+    mv config.xml config-orig.xml
     sed 's/<name>\(.*\)<\/name>/<name>{% if not params["EnvironmentNameUpper"].startswith("PROD") %}{{ params["EnvironmentNameUpper"] }} {% endif %}\1<\/name>/g' config-orig.xml > config.xml
     sed -i 's/^\(.*\)applicationId.*$/\1applicationId = privateHelpers.extractStringFromManifest("package") + "." + "$System.env.EnvironmentNameLower"/g' \
           platforms/android/app/build.gradle 
@@ -44,14 +50,17 @@
     cat platforms/android/app/build.gradle
 
     cordova build --release android -- \
+           --gradleArg=--info \
+           --gradleArg=--stacktrace \
            --keystore=/home/build/release.keystore \
            --storePassword=abcdef12 \
            --alias=appreleasedemoalias \
            --password=abcdef12
 
-    ls -la /home/build/platforms/android/app/build/outputs/apk/release/
-    cp /home/build/platforms/android/app/build/outputs/apk/release/app-release.apk \
-        /dist/release.apk
+    tree /home/build/platforms/android/app/build/outputs
+
+    cp platforms/android/app/build/outputs/bundle/release/app-release.aab \
+       /dist/release.aab
   environment: '{{ params }}'
 
 - name: 'Deploy app'
@@ -115,7 +124,7 @@
 
     appcenter distribute release \
             --group DEV \
-            --file /dist/release.apk \
+            --file /dist/release.aab \
             --app "${org}/${app_name}" \
             --token "${APP_CENTER_TOKEN}" \
             --debug

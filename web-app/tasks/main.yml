@@ -29,16 +29,14 @@
       HostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       Region: '{{ params["Region"] }}'
 
-- name: 'Check if ther is index.html temlate'
-  stat:
-     path: /dist/template/index.html
-  register: stat_result
+- name: 'Copy index.html to template'
+  shell: |
+    cp /dist/s3/index.html /dist/index.j2.html
 
 - name: 'Render index.html template'
   template:
-    src: /dist/template/index.html
-    dest:  /dist/s3/index.html
-  when: stat_result.stat.exists
+    src: /dist/index.j2.html
+    dest: /dist/s3/index.html
 
 - name: 'Copy s3 content to bucket'
   environment: '{{ params }}'
