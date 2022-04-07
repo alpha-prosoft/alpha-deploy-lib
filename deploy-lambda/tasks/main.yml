@@ -93,7 +93,7 @@
                                 params['PublicHostedZoneName'] +
                                 '/password') }}"
       auth:
-        client-id: "{{ params['AuthUserPoolClientId'] }}"
+        client-id: "{{ params['WebUserPoolClientId'] }}"
         client-secret: "{{ client_secret.stdout }}"
         user-pool-id: "{{ params['AuthUserPoolId'] }}"
         authorized-pools:
