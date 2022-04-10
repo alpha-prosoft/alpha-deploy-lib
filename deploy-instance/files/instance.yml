@@ -357,6 +357,9 @@ Resources:
       AssociatePublicIpAddress: True
       ImageId: !Ref AmiId
       InstanceType: !Ref NodeInstanceType
+      MetadataOptions: 
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 3
       SecurityGroups:
         - !Ref InstanceSecurityGroup
       IamInstanceProfile: !Ref InstanceProfile
@@ -443,10 +446,10 @@ Resources:
           ssh-keygen -y -f "/home/$username/.ssh/id_rsa" > "/home/$username/.ssh/id_rsa.pub"  
 
           aws ssm put-parameter \
-          		--name "/$EnvironmentNameLower/public/$ServiceAlias/.ssh/id_rsa.pub" \
-          		--value "$(cat /home/$username/.ssh/id_rsa.pub | base64 -w0)" \
-                        --overwrite \
-          		--type "String"
+            --name "/$EnvironmentNameLower/public/$ServiceAlias/.ssh/id_rsa.pub" \
+            --value "$(cat /home/$username/.ssh/id_rsa.pub | base64 -w0)" \
+            --overwrite \
+            --type "String"
           
           mkdir -p /run/$username
           chown $username:$username /run/$username

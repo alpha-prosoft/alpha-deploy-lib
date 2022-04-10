@@ -72,9 +72,6 @@ Parameters:
   AuthUserPoolClientId:
     Type: String
 
-  IndexDomainEndpoint:
-    Type: String
-
   PrivateSubnet1A:
     Type: String
   PrivateSubnet2A:
@@ -554,7 +551,6 @@ Resources:
           Region: !Ref Region
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
-          IndexDomainEndpoint: !Sub "${IndexDomainEndpoint}"
           CustomConfig: !Ref CustomConfig
 
 
@@ -565,6 +561,16 @@ Resources:
       Action: 'lambda:InvokeFunction'
       Principal: elasticloadbalancing.amazonaws.com
 
+  LambdaInvokeAPIGWPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+    DependsOn:
+      - LambdaFunction
+
+     
   CommandsQueue:
     Type: AWS::SQS::Queue
     Properties:
