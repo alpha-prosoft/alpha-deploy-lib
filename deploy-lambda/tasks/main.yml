@@ -131,6 +131,34 @@
   shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/jwks.json'
 
 
+- name: 'Check if layer exists' 
+  args: 
+     executable: /bin/bash 
+  shell: | 
+     if [[ -f '/dist/{{ params["ServiceName"] }}-layer.zip' ]]; then 
+       echo "true" 
+     else 
+       echo "false" 
+     fi 
+  register: layer_out 
+ 
+- set_fact: 
+    params: '{{ params | combine( { "S3LayerBucketName": params["AccountId"] + "-" + params["EnvironmentNameLower"] + "-deployment", 
+                                            "S3LayerObjectName": function_name + "-layer-" + params["Version"] + ".zip" } ) }}' 
+  when: layer_out.stdout == 'true' 
+ 
+ 
+- name: "Upload layer if exists" 
+  aws_s3: 
+    bucket: '{{ params["DeploymentS3BucketName"] }}' 
+    region: '{{ params["Region"] }}' 
+    mode: put 
+    src: '/dist/{{ function_name }}-layer.zip' 
+    object: '{{ params["S3LayerObjectName"] }}' 
+  environment: '{{ params }}' 
+  when: layer_out.stdout == 'true' 
+
+
 - name: 'Upload lambda package to S3'
   aws_s3:
     bucket: '{{ params["DeploymentS3BucketName"] }}'
