@@ -93,16 +93,11 @@
                                 params['PublicHostedZoneName'] +
                                 '/password') }}"
       auth:
-        client-id: "{{ params['WebUserPoolClientId'] }}"
+        client-id: "{{ params['AuthUserPoolClientId'] }}"
         client-secret: "{{ client_secret.stdout }}"
         user-pool-id: "{{ params['AuthUserPoolId'] }}"
         mapping:
             id: "sub"
-        authorized-pools:
-            - user-pool-id: "{{ params['AuthUserPoolId'] }}"
-              client-id: "{{ params['WebUserPoolClientId'] }}"
-            - user-pool-id: "{{ params['AdminUserPoolId'] }}"
-              client-id: "{{ params['AdminUserPoolClientId'] }}"
   when: no_secret is not defined
 
 - copy:
@@ -120,11 +115,7 @@
   args:
     executable: /bin/bash
   shell: |
-    url_1="https://cognito-idp.{{ params['Region'] }}.amazonaws.com/{{ params['AuthUserPoolId'] }}/.well-known/jwks.json"
-    url_2="https://cognito-idp.{{ params['Region'] }}.amazonaws.com/{{ params['AdminUserPoolId'] }}/.well-known/jwks.json"
-    k_1=$(curl $url_1 | jq -r '.keys')
-    k_2=$(curl $url_2 | jq -r '.keys')
-    echo "{\"keys\" : $(jq --argjson arr1 "$k_1" --argjson arr2 "$k_2" -n '$arr2 + $arr1')}" > /dist/jwks.json
+    curl "https://cognito-idp.{{ params['Region'] }}.amazonaws.com/{{ params['AuthUserPoolId'] }}/.well-known/jwks.json" -o /dist/jwks.json
   environment: '{{ params }}'
 
 - name: "Add cognito jwks to lambda"
