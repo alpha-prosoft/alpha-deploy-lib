@@ -96,6 +96,7 @@
         client-id: "{{ params['AuthUserPoolClientId'] }}"
         client-secret: "{{ client_secret.stdout }}"
         user-pool-id: "{{ params['AuthUserPoolId'] }}"
+        default-realm: "realm-prod"
         mapping:
             id: "sub"
   when: no_secret is not defined
