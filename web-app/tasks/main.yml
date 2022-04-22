@@ -31,19 +31,23 @@
 
 - name: 'Copy index.html to template'
   shell: |
-    cp /dist/s3/index.html /dist/index.j2.html
+    env='{{ params["EnvironmentNameLower"] }}'
+    mkdir -p /dist/$env/s3 
+    cp -r /dist/s3/* /dist/$env/s3 
+    rm -rf /dist/index.j2.html
+    cp /dist/$env/s3/index.html /dist/index.j2.html
 
 - name: 'Render index.html template'
   template:
     src: /dist/index.j2.html
-    dest: /dist/s3/index.html
+    dest: '/dist/{{ params["EnvironmentNameLower"] }}/s3/index.html'
 
 - name: 'Copy s3 content to bucket'
   environment: '{{ params }}'
   s3_sync:
     region: '{{ params["Region"] }}'
     bucket: '{{ params["S3BucketName"] }}'
-    file_root: '/dist/s3'
+    file_root: '/dist/{{ params["EnvironmentNameLower"] }}/s3'
     file_change_strategy: force
     delete: true
     mime_map:
