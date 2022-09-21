@@ -44,7 +44,7 @@
 
     rm -rf $workdir
     mkdir -p $workdir
-    cp /home/build/* $workdir
+    cp -r /home/build/* $workdir
     cd $workdir
 
     rm -rf $workdir/www
