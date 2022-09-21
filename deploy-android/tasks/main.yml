@@ -40,7 +40,7 @@
 - name: 'Build android app'
   shell: |
     set -e
-    workdir="/home/build/rtarget"
+    workdir="/dist/rtarget"
 
     rm -rf $workdir
     mkdir -p $workdir
