@@ -1,10 +1,13 @@
 - shell: |
-    mv /dist/s3/index.html /dist/s3/index.j2.html
+    rm -rf /dist/${EnvironmentNameLower}
+    cp -r /dist/s3 /dist/${EnvironmentNameLower}/s3
+    cp /dist/${EnvironmentNameLower}/s3/index.html /dist/${EnvironmentNameLower}/s3/index.j2.html
+  environment: '{{ params }}'
 
 - name: 'Render index.html template'
   template:
-    src: /dist/s3/index.j2.html
-    dest:  /dist/s3/index.html
+    src: '/dist/{{ params["EnvironmentNameUpper"] }}/s3/index.j2.html'
+    dest: '/dist/{{ params["EnvironmentNameUpper"] }}/s3/index.html'
 
 - name: 'Create signing key'
   shell: |
@@ -37,8 +40,9 @@
   shell: |
     set -e
     cd /home/build
+    rm -rf /home/build/www
     mkdir -p /home/build/www
-    cp -r /dist/s3/* /home/build/www
+    cp -r /dist/{EnvironmentNameLower}/s3/* /home/build/www
 
     mv config.xml config-orig.xml
     sed 's/<name>\(.*\)<\/name>/<name>{% if not params["EnvironmentNameUpper"].startswith("PROD") %}{{ params["EnvironmentNameUpper"] }} {% endif %}\1<\/name>/g' config-orig.xml > config.xml
