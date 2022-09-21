@@ -40,10 +40,16 @@
 - name: 'Build android app'
   shell: |
     set -e
-    cd /home/build
-    rm -rf /home/build/www
-    mkdir -p /home/build/www
-    cp -r /dist/${EnvironmentNameLower}/s3/* /home/build/www
+    work_dir="/home/build/rtarget"
+
+    rm -rf $workdir
+    mkdir -p $workdir
+    cp /home/build/* $workdir
+    cd $workdir
+
+    rm -rf $workdir/www
+    mkdir -p $workdir/www
+    cp -r /dist/${EnvironmentNameLower}/s3/* $workdir/www
 
     mv config.xml config-orig.xml
     sed 's/<name>\(.*\)<\/name>/<name>{% if not params["EnvironmentNameUpper"].startswith("PROD") %}{{ params["EnvironmentNameUpper"] }} {% endif %}\1<\/name>/g' config-orig.xml > config.xml
@@ -57,12 +63,12 @@
     cordova build --release android -- \
            --gradleArg=--info \
            --gradleArg=--stacktrace \
-           --keystore=/home/build/release.keystore \
+           --keystore=$workdir/release.keystore \
            --storePassword=abcdef12 \
            --alias=appreleasedemoalias \
            --password=abcdef12
 
-    tree /home/build/platforms/android/app/build/outputs
+    tree $workdir/platforms/android/app/build/outputs
 
     cp platforms/android/app/build/outputs/bundle/release/app-release.aab \
        /dist/release.aab
