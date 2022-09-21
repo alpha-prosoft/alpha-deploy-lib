@@ -1,7 +1,7 @@
 - shell: |
     rm -rf /dist/${EnvironmentNameLower}
     mkdir -p /dist/${EnvironmentNameLower}/s3
-    cp -r /dist/s3 /dist/${EnvironmentNameLower}/s3
+    cp -r /dist/s3/* /dist/${EnvironmentNameLower}/s3/
     cp /dist/${EnvironmentNameLower}/s3/index.html /dist/${EnvironmentNameLower}/s3/index.j2.html
   environment: '{{ params }}'
 
