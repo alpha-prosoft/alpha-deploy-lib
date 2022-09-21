@@ -7,8 +7,8 @@
 
 - name: 'Render index.html template'
   template:
-    src: '/dist/{{ params["EnvironmentNameUpper"] }}/s3/index.j2.html'
-    dest: '/dist/{{ params["EnvironmentNameUpper"] }}/s3/index.html'
+    src: '/dist/{{ params["EnvironmentNameLower"] }}/s3/index.j2.html'
+    dest: '/dist/{{ params["EnvironmentNameLower"] }}/s3/index.html'
 
 - name: 'Create signing key'
   shell: |
