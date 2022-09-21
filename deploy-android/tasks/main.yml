@@ -43,7 +43,7 @@
     cd /home/build
     rm -rf /home/build/www
     mkdir -p /home/build/www
-    cp -r /dist/{EnvironmentNameLower}/s3/* /home/build/www
+    cp -r /dist/${EnvironmentNameLower}/s3/* /home/build/www
 
     mv config.xml config-orig.xml
     sed 's/<name>\(.*\)<\/name>/<name>{% if not params["EnvironmentNameUpper"].startswith("PROD") %}{{ params["EnvironmentNameUpper"] }} {% endif %}\1<\/name>/g' config-orig.xml > config.xml
