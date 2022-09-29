@@ -160,6 +160,7 @@ Resources:
             Action:
               - dynamodb:Query
               - dynamodb:PutItem
+              - dynamodb:GetItem
             Resource: "*"
       Roles:
         - !Ref LambdaRole
