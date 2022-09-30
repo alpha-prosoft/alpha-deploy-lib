@@ -98,7 +98,7 @@
         user-pool-id: "{{ params['AuthUserPoolId'] }}"
         default-realm: "realm-prod"
         mapping:
-            id: "sub"
+            id: "custom:user_id"
   when: no_secret is not defined
 
 - copy:

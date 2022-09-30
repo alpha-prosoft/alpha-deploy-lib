@@ -1,0 +1,56 @@
+- shell: |
+    uuidgen
+    uuidgen
+    uuidgen
+    uuidgen
+  register: uuid_gen
+
+- name: "Query for application" 
+  community.aws.execute_lambda:
+    name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
+    payload:
+      interaction-id: '#{{ uuid_gen.stdout_lines[0] }}'
+      request-id: '#{{ uuid_gen.stdout_lines[1] }}'
+      query:
+        query-id: ":get-by-name" 
+        name: '{{ params["ServiceName"] }}' 
+    wait: true
+    tail_log: true
+  register: query_response
+
+- debug: 
+    var: query_response.result
+
+- fail: 
+   msg: "Query error"
+  when: '"result" not in query_response.result.output'
+
+- set_fact:
+    application_id: '{{ query_response.result.output.result.id | default(uuid_gen.stdout_lines[2]) }}' 
+
+- debug: 
+    var: application_id
+
+- name: "Create application if missing"
+  community.aws.execute_lambda:
+    name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
+    payload:
+      interaction-id: '#{{ uuid_gen.stdout_lines[0] }}'
+      request-id: '#{{ uuid_gen.stdout_lines[3] }}'
+      commands: 
+      - cmd-id: ":create-application" 
+        id: '#{{ application_id }}'
+        attrs: 
+          name: '{{ params["ServiceName"] }}' 
+    wait: true
+  register: cmd_response
+  when: query_response.result.output.result == None
+
+- fail: 
+   msg: "Command error"
+  when: query_response.result.output.result == None and cmd_response.result.output.result.success != true
+
+
+- debug: 
+    var: cmd_response
+
