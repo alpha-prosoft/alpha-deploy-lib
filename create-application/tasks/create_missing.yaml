@@ -1,0 +1,19 @@
+- shell: |
+    uuidgen
+  register: user_uuid_gen
+
+- include_tasks: query.yaml
+  vars: 
+    body: '{{ query_body }}'
+
+- set_fact:
+    aggregate_id: '{{ query_response.result.id | default(uuid_gen.stdout_lines[0]) }}' 
+
+- debug: 
+    var: aggregate_id
+
+- include_tasks: cmd.yaml
+  vars: 
+    body: '{{ cmd_body | combine({"id" : aggreagate_id}) }}'
+  when: query_response.result == None
+

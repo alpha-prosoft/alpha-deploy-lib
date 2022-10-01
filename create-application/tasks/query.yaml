@@ -1,0 +1,30 @@
+- shell: |
+    uuidgen
+    uuidgen
+  register: query_uuid_gen
+
+- set_fact: 
+    interaction_id: '{{ query_uuid_gen.stdout_lines[0] }}'  
+  when: interaction_id is not defined
+
+- name: "Query for object" 
+  community.aws.execute_lambda:
+    name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
+    payload:
+      interaction-id: '#{{ interaction_id }}'
+      request-id: '#{{ query_uuid_gen.stdout_lines[1] }}'
+      query: '{{ body }}'
+    wait: true
+    tail_log: true
+  register: query_response
+
+- debug: 
+    var: query_response.result
+
+- fail: 
+   msg: "Query error"
+  when: '"result" not in query_response.result.output'
+
+- set_fact: 
+    query_response: '{{ query_response.result.output }}'
+

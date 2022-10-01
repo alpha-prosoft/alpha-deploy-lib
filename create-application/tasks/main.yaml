@@ -1,56 +1,36 @@
-- shell: |
-    uuidgen
-    uuidgen
-    uuidgen
-    uuidgen
-  register: uuid_gen
-
-- name: "Query for application" 
-  community.aws.execute_lambda:
-    name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
-    payload:
-      interaction-id: '#{{ uuid_gen.stdout_lines[0] }}'
-      request-id: '#{{ uuid_gen.stdout_lines[1] }}'
-      query:
-        query-id: ":get-by-name" 
+- include_tasks: create_missing.yaml
+  vars: 
+    query_body: 
+      query-id: ":get-by-name" 
+      name: '{{ params["ServiceName"] }}' 
+    cmd_body: 
+      cmd-id: ":create-application" 
+      attrs: 
         name: '{{ params["ServiceName"] }}' 
-    wait: true
-    tail_log: true
-  register: query_response
 
-- debug: 
-    var: query_response.result
+- set_fact: 
+    application_id: '{{ aggregate_id }}'
 
-- fail: 
-   msg: "Query error"
-  when: '"result" not in query_response.result.output'
+- include_tasks: create_missing.yaml
+  vars:
+    query_body: 
+      query-id: ":get-by-email" 
+      email: '{{ item }}' 
+    cmd_body: 
+      cmd-id: ":create-user" 
+      attrs: 
+        email: '{{ item }}' 
+  loop: '{{ admins }}'
+  when: admins
 
-- set_fact:
-    application_id: '{{ query_response.result.output.result.id | default(uuid_gen.stdout_lines[2]) }}' 
-
-- debug: 
-    var: application_id
-
-- name: "Create application if missing"
-  community.aws.execute_lambda:
-    name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
-    payload:
-      interaction-id: '#{{ uuid_gen.stdout_lines[0] }}'
-      request-id: '#{{ uuid_gen.stdout_lines[3] }}'
-      commands: 
-      - cmd-id: ":create-application" 
-        id: '#{{ application_id }}'
-        attrs: 
-          name: '{{ params["ServiceName"] }}' 
-    wait: true
-  register: cmd_response
-  when: query_response.result.output.result == None
-
-- fail: 
-   msg: "Command error"
-  when: query_response.result.output.result == None and cmd_response.result.output.result.success != true
+- include_tasks: cmd.yaml
+  vars:
+    body: 
+      id: '{{ application_id }}'
+      cmd-id: ":add-admins" 
+      attrs: 
+        email: '{{ admins }}' 
+  when: admins
 
 
-- debug: 
-    var: cmd_response
 
