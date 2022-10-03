@@ -32,5 +32,5 @@
         email: '{{ admins }}' 
   when: admins
 
-
-
+- set_fact:
+    params: '{{ params | combine({"ApplicationId":application_id}) }}'

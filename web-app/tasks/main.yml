@@ -27,6 +27,7 @@
       AuthUserPoolClientId: '{{ params["WebUserPoolClientId"] }}'
       PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       HostedZoneName: '{{ params["PublicHostedZoneName"] }}'
+      ApplicationId: '{{ params["ApplicationId"] | default("NoApp") }}'
       Region: '{{ params["Region"] }}'
 
 - name: 'Copy index.html to template'
