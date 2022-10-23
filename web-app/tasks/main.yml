@@ -28,6 +28,7 @@
       PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       HostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       ApplicationId: '{{ params["ApplicationId"] | default("NoApp") }}'
+      ApplicationServiceName: '{{ params["ApplicationServiceName"] | default("user-svc") }}'
       Region: '{{ params["Region"] }}'
 
 - name: 'Copy index.html to template'
