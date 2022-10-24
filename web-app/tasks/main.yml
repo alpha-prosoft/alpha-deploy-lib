@@ -19,6 +19,7 @@
 
 - set_fact:
     web_config:
+      BuildId: '{{ params["BuildId"] }}'
       ServiceName: '{{ params["ServiceName"] }}'
       EnvironmentNameLower: '{{ params["EnvironmentNameLower"] }}'
       EnvironmentNameUpper: '{{ params["EnvironmentNameUpper"] }}'
