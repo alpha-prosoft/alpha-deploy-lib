@@ -110,7 +110,7 @@
 
 
 - name: "Add password to lambda jar"
-  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/secret.json'
+  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json'
 
 - name: 'Download jwks'
   args:
@@ -120,7 +120,7 @@
   environment: '{{ params }}'
 
 - name: "Add cognito jwks to lambda"
-  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.jar /dist/jwks.json'
+  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/jwks.json'
 
 
 - name: 'Check if layer exists' 
@@ -156,7 +156,7 @@
     bucket: '{{ params["DeploymentS3BucketName"] }}'
     region: '{{ params["Region"] }}'
     mode: put
-    src: '/dist/{{ params["ServiceName"] }}.jar'
+    src: '/dist/{{ params["ServiceName"] }}.zip'
     object: '{{ params["S3LambdaObjectName"] }}'
   environment: '{{ params }}'
 

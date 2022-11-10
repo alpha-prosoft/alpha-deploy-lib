@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Default: 'index.handler'
 
+  LambdaRuntime: 
+    Type: String
+    Default: provided
+
   LambdaFunctionName:
     Type: String
 
@@ -183,7 +187,7 @@ Resources:
       FunctionName: !Sub "${EnvironmentNameUpper}-${LambdaFunctionName}"
       Handler: !Sub "${LambdaFunctionHandler}"
       Role: !GetAtt LambdaRole.Arn
-      Runtime: provided
+      Runtime: !Ref LambdaRuntime
       MemorySize: !Sub "${LambdaMemorySize}"
       Timeout: !Sub "${LambdaTimeout}"
       ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
