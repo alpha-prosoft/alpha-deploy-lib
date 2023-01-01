@@ -36,6 +36,9 @@ Parameters:
   LambdaFunctionName:
     Type: String
 
+  MainClass:
+    Type: String
+
   Region:
     Type: String
 
@@ -217,6 +220,7 @@ Resources:
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
           CustomConfig: !Ref CustomConfig
+          MainClass: !Ref MainClass
 
   LambdaInvokeAPIGWPermission:
     Type: "AWS::Lambda::Permission"

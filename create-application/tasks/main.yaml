@@ -26,11 +26,11 @@
 - include_tasks: cmd.yaml
   vars:
     body: 
-      id: '{{ application_id }}'
+      id: '#{{ application_id }}'
       cmd-id: ":add-admins" 
       attrs: 
         email: '{{ admins }}' 
   when: admins
 
 - set_fact:
-    params: '{{ params | combine({"ApplicationId":application_id}) }}'
+    params: '{{ params | combine( {"ApplicationId" : application_id} ) }}'

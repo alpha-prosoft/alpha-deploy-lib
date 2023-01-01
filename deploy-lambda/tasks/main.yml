@@ -17,7 +17,8 @@
 
 
 - set_fact:
-    params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"]  })}}'
+    params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"],
+                                    "MainClass" : "{{ lookup("env", "MAIN_CLASS") }}"})}}'
 - set_fact:
     params: '{{ params | combine({ "LambdaFunctionName" : function_name  })}}'
 
