@@ -23,16 +23,80 @@ Parameters:
   AliasDomainName:
     Type: String
     Default: ""
+  AliasHostedZoneId:
+    Type: String
+    Default: ""
+
+  AliasDomainName2:
+    Type: String
+    Default: ""
+  AliasHostedZoneId2:
+    Type: String
+    Default: ""
+
+  AliasDomainName3:
+    Type: String
+    Default: ""
+  AliasHostedZoneId3:
+    Type: String
+    Default: ""
+
+  AliasDomainName4:
+    Type: String
+    Default: ""
+  AliasHostedZoneId4:
+    Type: String
+    Default: ""
+
+  AliasDomainName5:
+    Type: String
+    Default: ""
+  AliasHostedZoneId5:
+    Type: String
+    Default: ""
+
+  AliasDomainName6:
+    Type: String
+    Default: ""
+  AliasHostedZoneId6:
+    Type: String
+    Default: ""
+
+  AliasDomainName7:
+    Type: String
+    Default: ""
+  AliasHostedZoneId7:
+    Type: String
+    Default: ""
+
+  AliasDomainName8:
+    Type: String
+    Default: ""
+  AliasHostedZoneId8:
+    Type: String
+    Default: ""
+
+  AliasDomainName9:
+    Type: String
+    Default: ""
+  AliasHostedZoneId9:
+    Type: String
+    Default: ""
 
   AliasCertificateArn:
     Type: String
     Default: ""
 
 Conditions:
-  HasAliasDomainName: !Not
-    - !Equals
-      - !Ref AliasDomainName
-      - ""
+  HasAliasDomainName: !Not [ !Equals [ !Ref AliasDomainName, "" ] ]
+  HasAliasDomainName2: !Not [ !Equals [ !Ref AliasDomainName2, "" ] ]
+  HasAliasDomainName3: !Not [ !Equals [ !Ref AliasDomainName3, "" ] ]
+  HasAliasDomainName4: !Not [ !Equals [ !Ref AliasDomainName4, "" ] ]
+  HasAliasDomainName5: !Not [ !Equals [ !Ref AliasDomainName5, "" ] ]
+  HasAliasDomainName6: !Not [ !Equals [ !Ref AliasDomainName6, "" ] ]
+  HasAliasDomainName7: !Not [ !Equals [ !Ref AliasDomainName7, "" ] ]
+  HasAliasDomainName8: !Not [ !Equals [ !Ref AliasDomainName8, "" ] ]
+  HasAliasDomainName9: !Not [ !Equals [ !Ref AliasDomainName9, "" ] ]
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -89,10 +153,15 @@ Resources:
         Enabled: true
         HttpVersion: 'http2'
         Aliases:
-          - !If
-            - HasAliasDomainName
-            - !Ref AliasDomainName
-            - !Sub "${ServiceName}.${PublicHostedZoneName}"
+          - !If [ HasAliasDomainName, !Ref AliasDomainName, !Sub "${ServiceName}.${PublicHostedZoneName}" ]
+          - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName3, !Ref AliasDomainName3, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName4, !Ref AliasDomainName4, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName5, !Ref AliasDomainName5, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName6, !Ref AliasDomainName6, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName7, !Ref AliasDomainName7, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName8, !Ref AliasDomainName8, !Ref AWS::NoValue ]
+          - !If [ HasAliasDomainName9, !Ref AliasDomainName9, !Ref AWS::NoValue ]
         DefaultRootObject: index.html
         CustomErrorResponses:
           - ErrorCode: 404
@@ -123,11 +192,102 @@ Resources:
   CloudFrontDNSRecord:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: !Ref PublicHostedZoneId
+      HostedZoneId: !If
+        - HasAliasDomainName
+        - !Ref AliasHostedZoneId
+        - !Sub PublicHostedZoneId
       Name: !If
         - HasAliasDomainName
         - !Ref AliasDomainName
         - !Sub "${ServiceName}.${PublicHostedZoneName}"
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord2:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName2
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId2
+      Name: !Ref AliasDomainName2
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord3:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName3
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId3
+      Name: !Ref AliasDomainName3
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord4:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName4
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId4
+      Name: !Ref AliasDomainName4
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord5:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName5
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId5
+      Name: !Ref AliasDomainName5
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord6:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName6
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId6
+      Name: !Ref AliasDomainName6
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord7:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName7
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId7
+      Name: !Ref AliasDomainName7
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord8:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName8
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId8
+      Name: !Ref AliasDomainName8
+      Type: CNAME
+      TTL: '3600'
+      ResourceRecords:
+        - !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord9:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName9
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId9
+      Name: !Ref AliasDomainName9
       Type: CNAME
       TTL: '3600'
       ResourceRecords:

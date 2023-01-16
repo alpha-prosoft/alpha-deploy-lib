@@ -7,7 +7,31 @@
 
 - set_fact:
     files: "{{ role_path }}/files"
- 
+
+- include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ files }}/hosts.yaml'
+    type: DNS
+  when: '"AliasDomainName" in params'
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
+  when: '"AliasDomainName" in params'
+
+- include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ files }}/cert.yaml'
+    type: GLOBAL
+    settings:
+      Region: 'us-east-1'
+  when: '"AliasDomainName" in params'
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
+  when: '"AliasDomainName" in params'
+
 - include_role: 
     name: alpha-deploy-lib/deploy-cloudformation
   vars:

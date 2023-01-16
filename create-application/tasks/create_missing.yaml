@@ -14,6 +14,6 @@
 
 - include_tasks: cmd.yaml
   vars: 
-    body: '{{ cmd_body | combine({"id" : "#" + aggregate_id}) }}'
+    body: '{{ cmd_body | combine({"id" : aggregate_id}) }}'
   when: query_response.result == None
 

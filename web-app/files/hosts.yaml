@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Daemon cluster node
+Parameters:
+  Region:
+    Type: String
+
+  AliasDomainName:
+    Type: String
+    Default: ""
+
+  AliasDomainMX:
+    Type: CommaDelimitedList
+    Default: ""
+
+  AliasDomainName2:
+    Type: String
+    Default: ""
+
+  AliasDomainName3:
+    Type: String
+    Default: ""
+
+  AliasDomainName4:
+    Type: String
+    Default: ""
+
+  AliasDomainName5:
+    Type: String
+    Default: ""
+
+  AliasDomainName6:
+    Type: String
+    Default: ""
+
+  AliasDomainName7:
+    Type: String
+    Default: ""
+
+  AliasDomainName8:
+    Type: String
+    Default: ""
+
+  AliasDomainName9:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasAliasDomainName: !Not [ !Equals [ !Ref AliasDomainName, "" ] ]
+  HasAliasDomainMX: !Not [ !Equals [ !Join [ "", !Ref AliasDomainMX ], "" ] ]
+  HasAliasDomainName2: !Not [ !Equals [ !Ref AliasDomainName2, "" ] ]
+  HasAliasDomainName3: !Not [ !Equals [ !Ref AliasDomainName3, "" ] ]
+  HasAliasDomainName4: !Not [ !Equals [ !Ref AliasDomainName4, "" ] ]
+  HasAliasDomainName5: !Not [ !Equals [ !Ref AliasDomainName5, "" ] ]
+  HasAliasDomainName6: !Not [ !Equals [ !Ref AliasDomainName6, "" ] ]
+  HasAliasDomainName7: !Not [ !Equals [ !Ref AliasDomainName7, "" ] ]
+  HasAliasDomainName8: !Not [ !Equals [ !Ref AliasDomainName8, "" ] ]
+  HasAliasDomainName9: !Not [ !Equals [ !Ref AliasDomainName9, "" ] ]
+
+Resources:
+  AliasHostedZone:
+    Condition: HasAliasDomainName
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName
+
+  AliasHostedZoneMX:
+    Type: AWS::Route53::RecordSet
+    Condition: HasAliasDomainMX
+    Properties:
+      HostedZoneId: !Ref AliasHostedZone
+      Name: !Ref AliasDomainName
+      Type: 'MX'
+      TTL: 3600
+      ResourceRecords: !Ref AliasDomainMX
+
+  AliasHostedZone2:
+    Condition: HasAliasDomainName2
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName2
+
+  AliasHostedZone3:
+    Condition: HasAliasDomainName3
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName3
+
+  AliasHostedZone4:
+    Condition: HasAliasDomainName4
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName4
+
+  AliasHostedZone5:
+    Condition: HasAliasDomainName5
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName5
+
+  AliasHostedZone6:
+    Condition: HasAliasDomainName6
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName6
+
+  AliasHostedZone7:
+    Condition: HasAliasDomainName7
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName7
+
+  AliasHostedZone8:
+    Condition: HasAliasDomainName8
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName8
+
+  AliasHostedZone9:
+    Condition: HasAliasDomainName9
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref AliasDomainName9
+
+Outputs:
+  AliasHostedZoneId:
+    Condition: HasAliasDomainName
+    Value: !GetAtt AliasHostedZone.Id
+  AliasHostedZoneId2:
+    Condition: HasAliasDomainName2
+    Value: !GetAtt AliasHostedZone2.Id
+  AliasHostedZoneId3:
+    Condition: HasAliasDomainName3
+    Value: !GetAtt AliasHostedZone3.Id
+  AliasHostedZoneId4:
+    Condition: HasAliasDomainName4
+    Value: !GetAtt AliasHostedZone4.Id
+  AliasHostedZoneId5:
+    Condition: HasAliasDomainName5
+    Value: !GetAtt AliasHostedZone5.Id
+  AliasHostedZoneId6:
+    Condition: HasAliasDomainName6
+    Value: !GetAtt AliasHostedZone6.Id
+  AliasHostedZoneId7:
+    Condition: HasAliasDomainName7
+    Value: !GetAtt AliasHostedZone7.Id
+  AliasHostedZoneId8:
+    Condition: HasAliasDomainName8
+    Value: !GetAtt AliasHostedZone8.Id
+  AliasHostedZoneId9:
+    Condition: HasAliasDomainName9
+    Value: !GetAtt AliasHostedZone9.Id
