@@ -195,7 +195,7 @@ Resources:
       HostedZoneId: !If
         - HasAliasDomainName
         - !Ref AliasHostedZoneId
-        - !Sub PublicHostedZoneId
+        - !Ref PublicHostedZoneId
       Name: !If
         - HasAliasDomainName
         - !Ref AliasDomainName
