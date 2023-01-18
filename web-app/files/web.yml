@@ -153,7 +153,8 @@ Resources:
         Enabled: true
         HttpVersion: 'http2'
         Aliases:
-          - !If [ HasAliasDomainName, !Ref AliasDomainName, !Sub "${ServiceName}.${PublicHostedZoneName}" ]
+          - !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+          - !If [ HasAliasDomainName, !Ref AliasDomainName, !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName3, !Ref AliasDomainName3, !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName4, !Ref AliasDomainName4, !Ref AWS::NoValue ]
@@ -192,18 +193,23 @@ Resources:
   CloudFrontDNSRecord:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: !If
-        - HasAliasDomainName
-        - !Ref AliasHostedZoneId
-        - !Ref PublicHostedZoneId
-      Name: !If
-        - HasAliasDomainName
-        - !Ref AliasDomainName
-        - !Sub "${ServiceName}.${PublicHostedZoneName}"
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      HostedZoneId: !Ref PublicHostedZoneId
+      Name: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontAliasDNSRecord:
+    Type: 'AWS::Route53::RecordSet'
+    Condition: HasAliasDomainName
+    Properties:
+      HostedZoneId: !Ref AliasHostedZoneId
+      Name: !Ref AliasDomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord2:
     Type: 'AWS::Route53::RecordSet'
@@ -211,10 +217,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId2
       Name: !Ref AliasDomainName2
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord3:
     Type: 'AWS::Route53::RecordSet'
@@ -222,10 +228,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId3
       Name: !Ref AliasDomainName3
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord4:
     Type: 'AWS::Route53::RecordSet'
@@ -233,10 +239,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId4
       Name: !Ref AliasDomainName4
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord5:
     Type: 'AWS::Route53::RecordSet'
@@ -244,10 +250,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId5
       Name: !Ref AliasDomainName5
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord6:
     Type: 'AWS::Route53::RecordSet'
@@ -255,10 +261,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId6
       Name: !Ref AliasDomainName6
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord7:
     Type: 'AWS::Route53::RecordSet'
@@ -266,10 +272,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId7
       Name: !Ref AliasDomainName7
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord8:
     Type: 'AWS::Route53::RecordSet'
@@ -277,10 +283,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId8
       Name: !Ref AliasDomainName8
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
   CloudFrontAliasDNSRecord9:
     Type: 'AWS::Route53::RecordSet'
@@ -288,10 +294,10 @@ Resources:
     Properties:
       HostedZoneId: !Ref AliasHostedZoneId9
       Name: !Ref AliasDomainName9
-      Type: CNAME
-      TTL: '3600'
-      ResourceRecords:
-        - !GetAtt CloudFrontDistribution.DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: "Z2FDTNDATAQYW2"
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
 
 Outputs:
   S3BucketName:

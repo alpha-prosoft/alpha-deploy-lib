@@ -87,6 +87,8 @@
       .ico: image/x-icon
 
 - name: 'InvalidateCache'
+  retries: 3
+  delay: 30
   cloudfront_invalidation:
     distribution_id: '{{ params["CloudFrontDistributionId"] }}'
     caller_reference: '{{ params["ServiceName"] }}-{{ params["BuildId"] }}'

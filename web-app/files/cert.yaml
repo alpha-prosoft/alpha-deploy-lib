@@ -4,6 +4,9 @@ Parameters:
   Region:
     Type: String
 
+  ServiceName:
+    Type: String
+
   AliasDomainName:
     Type: String
     Default: ""
@@ -67,6 +70,11 @@ Parameters:
     Type: String
     Default: ""
 
+  PublicHostedZoneId:
+    Type: String
+  PublicHostedZoneName:
+    Type: String
+
 Conditions:
   HasAliasDomainName: !Not [ !Equals [ !Ref AliasDomainName, "" ] ]
   HasAliasDomainName2: !Not [ !Equals [ !Ref AliasDomainName2, "" ] ]
@@ -84,60 +92,87 @@ Resources:
     Condition: HasAliasDomainName
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Join [ "." , [ "*", !Ref AliasDomainName ] ]
+      DomainName: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
       DomainValidationOptions:
-        - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName ] ]
+        - DomainName: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+          HostedZoneId: !Ref PublicHostedZoneId
+        - DomainName: !Ref AliasDomainName
           HostedZoneId: !Ref AliasHostedZoneId
         - !If
           - HasAliasDomainName2
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName2 ] ]
+          - DomainName: !Ref AliasDomainName2
             HostedZoneId: !Ref AliasHostedZoneId2
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName3
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName3 ] ]
+          - DomainName: !Ref AliasDomainName3
             HostedZoneId: !Ref AliasHostedZoneId3
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName4
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName4 ] ]
+          - DomainName: !Ref AliasDomainName4
             HostedZoneId: !Ref AliasHostedZoneId4
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName5
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName5 ] ]
+          - DomainName: !Ref AliasDomainName5
             HostedZoneId: !Ref AliasHostedZoneId5
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName6
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName6 ] ]
+          - DomainName: !Ref AliasDomainName6
             HostedZoneId: !Ref AliasHostedZoneId6
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName7
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName7 ] ]
+          - DomainName: !Ref AliasDomainName7
             HostedZoneId: !Ref AliasHostedZoneId7
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName8
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName8 ] ]
+          - DomainName: !Ref AliasDomainName8
             HostedZoneId: !Ref AliasHostedZoneId8
           - !Ref AWS::NoValue
+
         - !If
           - HasAliasDomainName9
-          - DomainName: !Join [ "." , [ "*", !Ref AliasDomainName9 ] ]
+          - DomainName: !Ref AliasDomainName9
             HostedZoneId: !Ref AliasHostedZoneId9
           - !Ref AWS::NoValue
+
       SubjectAlternativeNames:
+        - !Join [ "." , [ "*", !Ref AliasDomainName ] ]
         - !Ref AliasDomainName
+
         - !If [ HasAliasDomainName2, !Join [ "." , [ "*", !Ref AliasDomainName2 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName3, !Join [ "." , [ "*", !Ref AliasDomainName3 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName3, !Ref AliasDomainName3, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName4, !Join [ "." , [ "*", !Ref AliasDomainName4 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName4, !Ref AliasDomainName4, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName5, !Join [ "." , [ "*", !Ref AliasDomainName5 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName5, !Ref AliasDomainName5, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName6, !Join [ "." , [ "*", !Ref AliasDomainName6 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName6, !Ref AliasDomainName6, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName7, !Join [ "." , [ "*", !Ref AliasDomainName7 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName7, !Ref AliasDomainName7, !Ref AWS::NoValue ]
+
         - !If [ HasAliasDomainName8, !Join [ "." , [ "*", !Ref AliasDomainName8 ] ], !Ref AWS::NoValue ]
-        - !If [ HasAliasDomainName9, !Join [ "." , [ "*", !Ref AliasDomainName8 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName8, !Ref AliasDomainName8, !Ref AWS::NoValue ]
+
+        - !If [ HasAliasDomainName9, !Join [ "." , [ "*", !Ref AliasDomainName9 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName9, !Ref AliasDomainName9, !Ref AWS::NoValue ]
       ValidationMethod: DNS
 
 Outputs:
