@@ -113,8 +113,8 @@
     executable: /bin/bash
   shell: |
     set -e
-    if [[ -f '/dist/{{ parameters["ServiceName"] }}.jar' ]]; then
-       cp /dist/{{ parameters["ServiceName"] }}.jar /dist/{{ parameters["ServiceName"] }}.zip
+    if [[ -f '/dist/{{ params["ServiceName"] }}.jar' ]]; then
+       cp /dist/{{ params["ServiceName"] }}.jar /dist/{{ params["ServiceName"] }}.zip
     fi
 
 - name: "Add password to lambda jar"
