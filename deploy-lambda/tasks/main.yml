@@ -108,7 +108,14 @@
   environment: '{{ params }}'
   when: no_secret is defined
 
-
+- name: "Rename file if needed"
+  args:
+    executable: /bin/bash
+  shell: |
+    set -e
+    if [[ -f '/dist/{{ parameters["ServiceName"] }}.jar' ]]; then
+       cp /dist/{{ parameters["ServiceName"] }}.jar /dist/{{ parameters["ServiceName"] }}.zip
+    fi
 
 - name: "Add password to lambda jar"
   shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json'
