@@ -1,6 +1,6 @@
 - shell: |
-    uuidgen
-    uuidgen
+    echo "#$(uuidgen)"
+    echo "#$(uuidgen)"
   register: query_uuid_gen
 
 - set_fact: 
@@ -11,8 +11,8 @@
   community.aws.execute_lambda:
     name: '{{ params["EnvironmentNameUpper"] }}-user-svc' 
     payload:
-      interaction-id: '#{{ interaction_id }}'
-      request-id: '#{{ query_uuid_gen.stdout_lines[1] }}'
+      interaction-id: '{{ interaction_id }}'
+      request-id: '{{ query_uuid_gen.stdout_lines[1] }}'
       query: '{{ body }}'
       meta: 
         realm: prod

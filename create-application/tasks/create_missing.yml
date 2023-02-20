@@ -1,8 +1,8 @@
 - shell: |
-    uuidgen
+    echo "#$(uuidgen)"
   register: agg_uuid_gen
 
-- include_tasks: query.yaml
+- include_tasks: query.yml
   vars: 
     body: '{{ query_body }}'
 
@@ -12,7 +12,7 @@
 - debug: 
     var: aggregate_id
 
-- include_tasks: cmd.yaml
+- include_tasks: cmd.yml
   vars: 
     body: '{{ cmd_body | combine({"id" : aggregate_id}) }}'
   when: query_response.result == None

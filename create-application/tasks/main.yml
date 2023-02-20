@@ -1,4 +1,4 @@
-- include_tasks: create_missing.yaml
+- include_tasks: create_missing.yml
   vars: 
     query_body: 
       query-id: ":get-by-name" 
@@ -11,7 +11,7 @@
 - set_fact: 
     application_id: '{{ aggregate_id }}'
 
-- include_tasks: create_missing.yaml
+- include_tasks: create_missing.yml
   vars:
     query_body: 
       query-id: ":get-by-email" 
@@ -23,10 +23,10 @@
   loop: '{{ admins }}'
   when: admins
 
-- include_tasks: cmd.yaml
+- include_tasks: cmd.yml
   vars:
     body: 
-      id: '#{{ application_id }}'
+      id: '{{ application_id }}'
       cmd-id: ":add-admins" 
       attrs: 
         email: '{{ admins }}' 
