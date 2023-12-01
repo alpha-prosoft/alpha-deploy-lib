@@ -34,30 +34,88 @@
     region: '{{ settings["Region"] | default(params["Region"]) }}'
   when: stack_status.stdout ==  "ROLLBACK_COMPLETE"
 
-- name: 'Extract CloudFormation params'
-  shell: "yq .Parameters {{ cloud_formation }} | jq -r 'keys[]'"
-  register: valid_params
+- name: 'Remove custom policy because is not python JSON parsable'
+  set_fact:
+    custom_policy: '{{ params["CustomPolicy"] | default(None) }}'
+    params: '{{ params | combine( {"CustomPolicy"  : "-"} ) }}'
+  when: '"CustomPolicy" in params'
+  
+- name: 'Create files dir if missing'
+  file:
+    path: '{{ role_path }}/files'
+    state: directory
 
 - set_fact:
-    applicable_params: {}
+    rendered_cloud_formation: '{{ role_path }}/files/rendered.yaml'
 
-- name: 'Find applicable params'
+- name: "Render template from CF"
+  template:
+    src: '{{ cloud_formation }}'
+    dest: '{{ rendered_cloud_formation }}'
+    
+- name: "Parse params"
+  args:
+    executable: "/usr/bin/python3"
+  shell: |
+    import yaml
+    import json
+    params = json.loads("""{{ params | to_json }}""")
+    rendered_cloud_formation = "{{ rendered_cloud_formation }}"
+    additional_params = json.loads("""{{ additional_params | default({}) | to_json }}""")
+    build_id = "{{ params["BuildId"] }}"
+    with open(rendered_cloud_formation, "r") as f:
+        lines = f.readlines()
+    skip = False
+    with open(rendered_cloud_formation, "w") as f:
+        for line in lines:
+           if line[0].isupper():
+             skip = False
+           if line.startswith("Description:"):
+             line = "Description: \"BuildId=" + build_id + ";\"\n"
+             f.write(line)
+             skip = True
+           elif not skip:
+             f.write(line)
+    def any_constructor(loader, tag_suffix, node):
+        if isinstance(node, yaml.MappingNode):
+            return loader.construct_mapping(node)
+        if isinstance(node, yaml.SequenceNode):
+            return loader.construct_sequence(node)
+        return loader.construct_scalar(node)
+    yaml.add_multi_constructor('', any_constructor, Loader=yaml.SafeLoader)
+    with open(rendered_cloud_formation, 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+    finaL_params = {}
+    if "Parameters" in data_loaded:
+      for i in data_loaded["Parameters"].keys():
+        if i in params:
+          finaL_params[i] = params[i]
+    for i in additional_params.keys():
+      finaL_params[i] = additional_params[i]
+    print(json.dumps(finaL_params))
+  register: final_params
+
+- name: 'Set applicable params params'
   set_fact:
-    applicable_params: '{{ applicable_params | combine({ item : params[item] }) }}'
-  with_items: '{{ valid_params.stdout_lines  }}'
-  when: item in params
+    applicable_params: '{{ final_params.stdout | from_json }}'
+    
+- debug:
+    msg: "=== Executing deployment with stack {{ final_stack_name }} ==="
+    
+- set_fact:
+    resource_tags:
+      ServiceName: '{{ params["ServiceName"] }}'
+      Environment: '{{ params["EnvironmentNameLower"] }}'
+        
 
+    
+- name: 'Restore custom policy'
+  set_fact:
+    final_params: '{{ final_params | combine( {"CustomPolicy" : custom_policy | to_json } )}}'
+  when: '"CustomPolicy" in final_params'
 
 - debug:
     var: applicable_params
-
-- tempfile:
-    state: file
-  register: cf_temp_file
-
-- template:
-    src: '{{ cloud_formation }}'
-    dest: '{{ cf_temp_file.path }}'
 
 - name: 'Deploy cloudformation stack'
   cloudformation:
@@ -65,7 +123,7 @@
     state: 'present'
     region: '{{ settings["Region"] | default(params["Region"]) }}'
     disable_rollback: false
-    template: '{{ cf_temp_file.path }}'
+    template: '{{ rendered_cloud_formation }}'
     template_parameters: '{{ applicable_params }}'
     tags: '{{ resource_tags }}'
     capabilities: '{{ params.get("Capabilities", omit) }}'
