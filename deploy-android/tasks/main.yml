@@ -53,13 +53,23 @@
 
     mv config.xml config-orig.xml
     sed 's/<name>\(.*\)<\/name>/<name>{% if not params["EnvironmentNameUpper"].startswith("PROD") %}{{ params["EnvironmentNameUpper"] }} {% endif %}\1<\/name>/g' config-orig.xml > config.xml
-    sed -i 's/^\(.*\)applicationId.*$/\1applicationId = privateHelpers.extractStringFromManifest("package") + "." + "$System.env.EnvironmentNameLower"/g' \
+
+    echo "Adding compileSdkVersion to build.gradle"
+
+    sed -i 's/android {/android {\n    compileSdkVersion 24\n/g' platforms/android/app/build.gradle 
+    sed -i 's/^\(.*\)applicationId.*$/\1applicationId = "com.alphaprosoft.samurai.{{ params["EnvironmentNameLower"] }}"/g' \
           platforms/android/app/build.gradle 
 
     sed -i 's/1.0.0/1.0.{{ params["BuildId"] }}/g' config.xml 
-    cat config.xml
-    cat platforms/android/app/build.gradle
 
+    echo "###START config.xml"
+    cat config.xml
+    echo "###END config.xml"
+    echo "###START build.gradle"
+    cat platforms/android/app/build.gradle
+    echo "###START build.gradle"
+
+    echo "Start building"
     cordova build --release android -- \
            --gradleArg=--info \
            --gradleArg=--stacktrace \
