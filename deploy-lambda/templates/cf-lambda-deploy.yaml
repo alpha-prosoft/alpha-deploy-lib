@@ -168,6 +168,7 @@ Resources:
               - dynamodb:Query
               - dynamodb:PutItem
               - dynamodb:GetItem
+              - dynamodb:BatchWriteItem
             Resource: "*"
       Roles:
         - !Ref LambdaRole
