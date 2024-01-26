@@ -155,14 +155,7 @@ Resources:
               - sqs:DeleteMessage
               - sqs:GetQueueAttributes
               - sqs:ChangeMessageVisibility
-            Resource: !GetAtt CommandsQueue.Arn
-          - Effect: Allow
-            Action:
-              - sqs:ReceiveMessage
-              - sqs:DeleteMessage
-              - sqs:GetQueueAttributes
-              - sqs:ChangeMessageVisibility
-            Resource: !GetAtt EventsQueue.Arn
+            Resource: !Sub "arn:aws:sqs:${Region}:${AWS::AccountId}:${EnvironmentNameLower}*"
           - Effect: Allow
             Action:
               - dynamodb:Query
@@ -231,38 +224,75 @@ Resources:
       Principal: apigateway.amazonaws.com
     DependsOn:
       - LambdaFunction
-     
-  CommandsQueue:
+
+  TestCommandsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-${ServiceName}-commands"
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ServiceName}-commands-1.fifo"
+      FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
 
-  EventsQueue:
+  ProdCommandsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-${ServiceName}-events"
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ServiceName}-commands-1.fifo"
+      FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
 
-  EventsQueueLambdaInvokePermission:
+  TestEventsQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ServiceName}-events-1.fifo"
+      FifoQueue: true
+      DelaySeconds: 0
+      VisibilityTimeout: !Ref QueueTimeout
+
+  ProdEventsQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ServiceName}-events-1.fifo"
+      FifoQueue: true
+      DelaySeconds: 0
+      VisibilityTimeout: !Ref QueueTimeout
+
+
+
+  TestCommandsQueue1LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       Principal: sqs.amazonaws.com
-      SourceArn: !GetAtt EventsQueue.Arn
+      SourceArn: !GetAtt TestCommandsQueue1.Arn
       FunctionName: !Ref LambdaFunction
 
-  CommandsQueueLambdaInvokePermission:
+  ProdCommandsQueue1LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       Principal: sqs.amazonaws.com
-      SourceArn: !GetAtt CommandsQueue.Arn
+      SourceArn: !GetAtt ProdCommandsQueue1.Arn
       FunctionName: !Ref LambdaFunction
 
-  EventsQueuePermissions:
+  TestEventsQueue1LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt TestEventsQueue1.Arn
+      FunctionName: !Ref LambdaFunction
+
+  ProdEventsQueue1LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt ProdEventsQueue1.Arn
+      FunctionName: !Ref LambdaFunction
+
+
+  QueueSendPermissions:
     Type: AWS::SQS::QueuePolicy
     Condition: ShouldSubscribe
     DependsOn:
@@ -272,41 +302,55 @@ Resources:
         Statement:
           - Effect: Allow
             Action: sqs:SendMessage
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Resource: "*"
+          - Sid: "OnlyHTTPS"
+            Action: sqs:*
+            Effect: Deny
             Principal: "*"
-            Resource: !GetAtt EventsQueue.Arn
+            Resource: "*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
       Queues:
-        - !Ref EventsQueue
+        - !Ref TestCommandsQueue1
+        - !Ref ProdCommandsQueue1
+        - !Ref TestEventsQueue1
+        - !Ref ProdEventsQueue1
 
-  CommandsQueuePermissions:
-    Type: AWS::SQS::QueuePolicy
-    Condition: ShouldSubscribe
-    DependsOn:
-      - LambdaPolicy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Action: sqs:SendMessage
-            Principal: "*"
-            Resource: !GetAtt CommandsQueue.Arn
-      Queues:
-        - !Ref CommandsQueue
-
-  EventsSourceMapping:
+  TestCommandsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       Enabled: true
       BatchSize: 1
-      EventSourceArn: !GetAtt EventsQueue.Arn
+      EventSourceArn: !GetAtt TestCommandsQueue1.Arn
       FunctionName: !Ref LambdaFunction
 
-  CommandsSourceMapping:
+  ProdCommandsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       Enabled: true
       BatchSize: 1
-      EventSourceArn: !GetAtt CommandsQueue.Arn
+      EventSourceArn: !GetAtt ProdCommandsQueue1.Arn
       FunctionName: !Ref LambdaFunction
+
+  TestEventsSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: true
+      BatchSize: 1
+      EventSourceArn: !GetAtt TestEventsQueue1.Arn
+      FunctionName: !Ref LambdaFunction
+
+  ProdEventsSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      Enabled: true
+      BatchSize: 1
+      EventSourceArn: !GetAtt ProdEventsQueue1.Arn
+      FunctionName: !Ref LambdaFunction
+
 
 
   BucketLambdaPermissions:
