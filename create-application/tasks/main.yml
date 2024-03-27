@@ -2,11 +2,12 @@
   vars: 
     query_body: 
       query-id: ":get-by-name" 
-      name: '{{ params["ServiceName"] }}' 
+      name: '{{ attrs["name"] }}'
     cmd_body: 
       cmd-id: ":create-application" 
       attrs: 
-        name: '{{ params["ServiceName"] }}' 
+        name: '{{ attrs["name"] }}'
+        type: '{{ attrs["type"] }}'
 
 - set_fact: 
     application_id: '{{ aggregate_id }}'
