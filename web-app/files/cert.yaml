@@ -96,8 +96,10 @@ Resources:
       DomainValidationOptions:
         - DomainName: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
           HostedZoneId: !Ref PublicHostedZoneId
+
         - DomainName: !Ref AliasDomainName
           HostedZoneId: !Ref AliasHostedZoneId
+
         - !If
           - HasAliasDomainName2
           - DomainName: !Ref AliasDomainName2
@@ -147,8 +149,15 @@ Resources:
           - !Ref AWS::NoValue
 
       SubjectAlternativeNames:
+        - !Join [ "." , [ "*", !Ref PublicHostedZoneName ] ]
+        - !Ref AliasDomainName
+        -
         - !Join [ "." , [ "*", !Ref AliasDomainName ] ]
         - !Ref AliasDomainName
+
+
+        - !If [ HasAliasDomainName2, !Join [ "." , [ "*", !Ref AliasDomainName2 ] ], !Ref AWS::NoValue ]
+        - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
 
         - !If [ HasAliasDomainName2, !Join [ "." , [ "*", !Ref AliasDomainName2 ] ], !Ref AWS::NoValue ]
         - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
