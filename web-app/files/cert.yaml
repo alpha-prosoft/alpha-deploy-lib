@@ -150,8 +150,7 @@ Resources:
 
       SubjectAlternativeNames:
         - !Join [ "." , [ "*", !Ref PublicHostedZoneName ] ]
-        - !Ref AliasDomainName
-        -
+
         - !Join [ "." , [ "*", !Ref AliasDomainName ] ]
         - !Ref AliasDomainName
 
