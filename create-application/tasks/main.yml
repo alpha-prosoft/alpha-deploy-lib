@@ -1,3 +1,9 @@
+- set_fact:
+    cmd_attrs:
+      name: '{{ attrs["name"] }}'
+      type: '{{ attrs["type"] }}'
+      title: '{{ attrs["title"] }}'
+
 - include_tasks: create_missing.yml
   vars: 
     query_body: 
@@ -5,12 +11,17 @@
       name: '{{ attrs["name"] }}'
     cmd_body: 
       cmd-id: ":create-application" 
-      attrs: 
-        name: '{{ attrs["name"] }}'
-        type: '{{ attrs["type"] }}'
+      attrs: '{{ cmd_attrs }}'
 
 - set_fact: 
     application_id: '{{ aggregate_id }}'
+
+- include_tasks: cmd.yml
+  vars:
+    body:
+      id: '{{ application_id }}'
+      cmd-id: ":update-application"
+      attrs: '{{ cmd_attrs }}'
 
 - include_tasks: create_missing.yml
   vars:
@@ -32,6 +43,7 @@
       attrs: 
         email: '{{ admins }}' 
   when: admins
+
 
 - set_fact:
     params: '{{ params | combine( {"ApplicationId" : application_id} ) }}'
