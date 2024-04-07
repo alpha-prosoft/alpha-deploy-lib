@@ -31,7 +31,7 @@ Parameters:
 
   LambdaRuntime: 
     Type: String
-    Default: provided
+    Default: "provided.al2"
 
   LambdaFunctionName:
     Type: String
