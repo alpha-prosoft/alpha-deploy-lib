@@ -117,8 +117,27 @@
        cp /dist/{{ params["ServiceName"] }}.jar /dist/{{ params["ServiceName"] }}.zip
     fi
 
-- name: "Add password to lambda jar"
-  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json'
+- name: "Add files to zip"
+  args:
+    executable: /bin/bash
+  shell: |
+    set -e
+
+    bootstrap_file="$(mktemp)" 
+    cat << EOF > bootstrap 
+    #!/bin/sh 
+    set -euo pipefail 
+    memory="\$((\$AWS_LAMBDA_FUNCTION_MEMORY_SIZE * 9 / 10))" 
+    args="-Xmx\${memory}m -Xms\${memory}m {{ settings["JVM_ARGS"] | default("") }}" 
+    echo "INIT_ARGS: \${args}" 
+    ./lambda_function \${args} -Dedd.main-class="{{ lookup('env', 'MAIN_CLASS') }}" -Dedd.startup-milis="\$(date +%s%3N)" -Dcom.zaxxer.hikari.useWeakReferences=false -Dclojure.tools.logging.factory=lambda.logging/slf4j-json-factory 
+    EOF
+ 
+    chmod +x bootstrap 
+    zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json 
+    zip -jrv /dist/{{ params["ServiceName"] }}.zip bootstrap
+
+    zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json
 
 - name: 'Download jwks'
   args:
