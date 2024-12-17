@@ -12,8 +12,8 @@
     name: alpha-deploy-lib/resolve-params
   vars:
     stacks: 
-    - type: BASE
-      name: alpha-base-infra  
+    - type: 'BASE'
+      name: '{{ params["ProjectName"] }}-base'
 
 - name: 'Create key pair'
   environment: '{{ params }}' 

@@ -2,8 +2,8 @@
     name: alpha-deploy-lib/resolve-params
   vars:
     stacks:
-    - type: CORE
-      name: alpha-base
+    - type: 'BASE'
+      name: '{{ params["ProjectName"] }}-base'
 
 - set_fact:
     files: "{{ role_path }}/files"

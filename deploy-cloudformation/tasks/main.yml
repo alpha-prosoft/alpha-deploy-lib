@@ -13,7 +13,7 @@
     local_params is defined
 
 - set_fact:
-    default_stack_name: '{{ params["EnvironmentNameUpper"] }}-{{ type }}-{{ params["ServiceName"] }}-stack'
+    default_stack_name: '{{ params["EnvironmentNameUpper"] }}-{{ type }}-{{ params["ProjectName"] }}-{{ params["ServiceName"] }}-stack'
 
 - set_fact:
     final_stack_name: '{{ stack_name | default(default_stack_name, true) }}'

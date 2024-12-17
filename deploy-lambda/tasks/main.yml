@@ -8,13 +8,10 @@
     name: alpha-deploy-lib/resolve-params
   vars:
     stacks:
-      - type: "CORE"
-        name: "alpha-base"
-      - type: "DYNAMODB"
-        name: "alpha-dynamodb-svc"
-      - type: "ELK"
-        name: "alpha-index-svc"
-
+      - type: "BASE"
+        name: '{{ params["ProjectName"] }}-base'
+      - type: 'DYNAMODB'
+        name: '{{ params["ProjectName"] }}-dynamodb-svc'
 
 - set_fact:
     params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"],
@@ -82,7 +79,7 @@
   vars:
     default_secrets:
       db:
-        name: "alpha-dynamodb-svc"
+        name: '{{ params["ProjectName"] }}-dynamodb-svc'
       svc:
         username: "{{ params['ServiceName'] }}@{{ params['PublicHostedZoneName'] }}"
         password: "{{ lookup('aws_secret',
@@ -99,7 +96,7 @@
         user-pool-id: "{{ params['AuthUserPoolId'] }}"
         default-realm: "prod"
         mapping:
-            id: "custom:user_id"
+          id: "custom:user_id"
   when: no_secret is not defined
 
 - copy:
@@ -132,7 +129,7 @@
     echo "INIT_ARGS: \${args}" 
     ./lambda_function \${args} -Dedd.main-class="{{ lookup('env', 'MAIN_CLASS') }}" -Dedd.startup-milis="\$(date +%s%3N)" -Dcom.zaxxer.hikari.useWeakReferences=false -Dclojure.tools.logging.factory=lambda.logging/slf4j-json-factory 
     EOF
- 
+    
     chmod +x bootstrap 
     zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json 
     zip -jrv /dist/{{ params["ServiceName"] }}.zip bootstrap
@@ -150,32 +147,32 @@
   shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/jwks.json'
 
 
-- name: 'Check if layer exists' 
-  args: 
-     executable: /bin/bash 
-  shell: | 
-     if [[ -f '/dist/{{ params["ServiceName"] }}-layer.zip' ]]; then 
-       echo "true" 
-     else 
-       echo "false" 
-     fi 
-  register: layer_out 
- 
-- set_fact: 
+- name: 'Check if layer exists'
+  args:
+    executable: /bin/bash
+  shell: |
+    if [[ -f '/dist/{{ params["ServiceName"] }}-layer.zip' ]]; then 
+      echo "true" 
+    else 
+      echo "false" 
+    fi
+  register: layer_out
+
+- set_fact:
     params: '{{ params | combine( { "S3LayerBucketName": params["AccountId"] + "-" + params["EnvironmentNameLower"] + "-deployment", 
-                                            "S3LayerObjectName": function_name + "-layer-" + params["Version"] + ".zip" } ) }}' 
-  when: layer_out.stdout == 'true' 
- 
- 
-- name: "Upload layer if exists" 
-  aws_s3: 
-    bucket: '{{ params["DeploymentS3BucketName"] }}' 
-    region: '{{ params["Region"] }}' 
-    mode: put 
-    src: '/dist/{{ function_name }}-layer.zip' 
-    object: '{{ params["S3LayerObjectName"] }}' 
-  environment: '{{ params }}' 
-  when: layer_out.stdout == 'true' 
+                                            "S3LayerObjectName": function_name + "-layer-" + params["Version"] + ".zip" } ) }}'
+  when: layer_out.stdout == 'true'
+
+
+- name: "Upload layer if exists"
+  aws_s3:
+    bucket: '{{ params["DeploymentS3BucketName"] }}'
+    region: '{{ params["Region"] }}'
+    mode: put
+    src: '/dist/{{ function_name }}-layer.zip'
+    object: '{{ params["S3LayerObjectName"] }}'
+  environment: '{{ params }}'
+  when: layer_out.stdout == 'true'
 
 
 - name: 'Upload lambda package to S3'
