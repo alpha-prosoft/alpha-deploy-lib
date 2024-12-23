@@ -79,6 +79,9 @@ Parameters:
     Type: String
     Default: ""
 
+  ManagedPolicyArns:
+    Type: CommaDelimitedList
+
 Conditions:
   HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ]]
 
@@ -96,9 +99,7 @@ Resources:
             Action:
               - "sts:AssumeRole"
       Path: "/"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      ManagedPolicyArns: !Ref ManagedPolicyArns
       RoleName: !Sub ${EnvironmentNameLower}-${ServiceName}-Role
 
   InstanceSecurityGroup:
