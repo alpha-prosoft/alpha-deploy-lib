@@ -21,25 +21,30 @@
   set_fact: 
     config_parameter: '{{ config_parameter_out.stdout_lines | last | from_json }}'
 
+- debug: 
+    var: config_parameter
+
 - name: "Check policies:
   set_fact:
-    ManagedPolicyArns: '{{ config_parameter["role"]["additionalPolicies"] | default([]) }}'
+    policies_arn: '{{ config_parameter["role"]["additionalPolicies"] | default([]) }}'
+
+
 
 - name: "Fetch deployed config" 
   set_fact: 
-    AssociatePublicIpAddress: '{{ config_parameter["associatePublicIpAddress"] | default("True") }}'
-    ManagedPolicyArns: '{{  ManagedPolicyArns +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy", \
+    public_ip: '{{ config_parameter["associatePublicIpAddress"] | default("True") }}'
+    policies_arn: '{{  ManagedPolicyArns +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy", \
                                                   "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"]  }}'
 - debug: 
-    var: ManagedPolicyArns
+    var: public_ip
 
 - debug: 
-    var: AssociatePublicIpAddress
+    var: policies_arn
                                                             
 - name: "Update params with deployer config" 
   set_fact:
-    params: '{{ params | combine({ "AssociatePublicIpAddress" : AssociatePublicIpAddress ,
-                                   "ManagedPolicyArns" : ManagedPolicyArns }) }}'
+    params: '{{ params | combine({ "AssociatePublicIpAddress" : public_ip ,
+                                   "ManagedPolicyArns" : policies_arn }) }}'
 
 
 
