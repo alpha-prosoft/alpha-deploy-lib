@@ -24,7 +24,7 @@
 - debug: 
     var: config_parameter
 
-- name: "Check policies:
+- name: "Check policies:"
   set_fact:
     policies_arn: '{{ config_parameter["role"]["additionalPolicies"] | default([]) }}'
 
