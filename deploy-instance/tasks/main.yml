@@ -14,9 +14,13 @@
        config="$(echo $config | jq -c '.deployer')"
      fi
      echo $config | jq -c .
-  register: config_parameter
+  register: config_parameter_out
   ignore_errors: true 
 
+- name: "Parse deploy config" 
+  set_fact: 
+    config_parameter: '{{ config_parameter_out.stdout_lines | last | from_json }}'
+    
 - name: "Fetch deployed config" 
   set_fact: 
     AssociatePublicIpAddress: '{{ config_parameter["associatePublicIpAddress"] | default("True") }}'
