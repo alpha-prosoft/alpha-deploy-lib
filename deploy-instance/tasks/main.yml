@@ -42,6 +42,34 @@
     cognito_groups:
     - non-interactive
 
+- name: 'Get config from Parameter Store'
+  shell: |
+     config="$(aws ssm get-parameter \
+                --name '/install/config' \
+                --query 'Parameter.Value' \
+                --output text || echo "{}")"     
+     echo "Current config"
+     if [[ "$(echo $config | jq -r '.builder.deployer // empty')" == "False" ]]; then 
+       config="{}"
+     fi
+     echo $config | jq -c .
+  register: config_parameter
+  ignore_errors: true 
+
+- set_fact: 
+    AssociatePublicIpAddress: "{{ config_parameter["associatePublicIpAddress"] }}"
+    ManagedPolicyArns:   "{{ config_parameter["ManagedPolicyArns"] | default([]) 
+                                                             +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+                                                                 "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"]  }}"
+- debug: 
+    var: ManagedPolicyArns
+
+- debug: 
+    var: AssociatePublicIpAddress
+                                                            
+- set_fact:
+    params: '{{ params | combine({ "AssociatePublicIpAddress" : AssociatePublicIpAddress ,
+                                   "ManagedPolicyArns" : ManagedPolicyArns }) }}'
 
 - include_role:
     name: alpha-deploy-lib/deploy-cloudformation
