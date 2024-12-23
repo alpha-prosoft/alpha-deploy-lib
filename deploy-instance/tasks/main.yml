@@ -22,6 +22,7 @@
     config_parameter: '{{ config_parameter_out.stdout_lines | last | from_json }}'
 
 - name: "Check policies:
+  set_fact:
     ManagedPolicyArns: '{{ config_parameter["role"]["additionalPolicies"] | default([]) }}'
 
 - name: "Fetch deployed config" 
