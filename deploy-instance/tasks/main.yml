@@ -56,7 +56,8 @@
   register: config_parameter
   ignore_errors: true 
 
-- set_fact: 
+- name: "Fetch deployed config" 
+  set_fact: 
     AssociatePublicIpAddress: "{{ config_parameter["associatePublicIpAddress"] }}"
     ManagedPolicyArns:   "{{ config_parameter["ManagedPolicyArns"] | default([]) 
                                                              +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
@@ -67,7 +68,8 @@
 - debug: 
     var: AssociatePublicIpAddress
                                                             
-- set_fact:
+- name: "Update params with deployer config" 
+  set_fact:
     params: '{{ params | combine({ "AssociatePublicIpAddress" : AssociatePublicIpAddress ,
                                    "ManagedPolicyArns" : ManagedPolicyArns }) }}'
 
