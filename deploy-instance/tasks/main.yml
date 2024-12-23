@@ -8,7 +8,7 @@
     echo "Owner: $owner_id"
     echo "New owner: {{ params['AccountId'] }}"
       
-    if [[ "${owner_id}" != "{{ params['AccountId'] }}"]]; then
+    if [[ "${owner_id}" != "{{ params['AccountId'] }}" ]]; then
       aws ec2 modify-image-attribute \
         --image-id "{{ params['AmiId'] }}" \
         --launch-permission "Add=[{UserId={{ params['AccountId'] }}}]"
