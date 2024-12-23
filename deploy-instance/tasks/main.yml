@@ -11,7 +11,7 @@
      if [[ "$(echo $config | jq -r '.deployer // empty')" == "False" ]]; then 
        config="{}"
      else
-       config="$(echo $config | jq -c '.deployer // empty'")"
+       config="$(echo $config | jq -c '.deployer')"
      fi
      echo $config | jq -c .
   register: config_parameter
