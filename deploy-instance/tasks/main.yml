@@ -8,8 +8,10 @@
                 --query 'Parameter.Value' \
                 --output text || echo "{}")"     
      echo "Current config"
-     if [[ "$(echo $config | jq -r '.builder.deployer // empty')" == "False" ]]; then 
+     if [[ "$(echo $config | jq -r '.deployer // empty')" == "False" ]]; then 
        config="{}"
+     else
+       config="$(echo $config | jq -c '.deployer // empty'")"
      fi
      echo $config | jq -c .
   register: config_parameter
