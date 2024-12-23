@@ -82,6 +82,9 @@ Parameters:
   ManagedPolicyArns:
     Type: CommaDelimitedList
 
+  AssociatePublicIpAddress: 
+    Type: String
+    
 Conditions:
   HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ]]
 
@@ -355,7 +358,7 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     DependsOn: InstanceProfile
     Properties:
-      AssociatePublicIpAddress: True
+      AssociatePublicIpAddress: !Ref AssociatePublicIpAddress
       ImageId: !Ref AmiId
       InstanceType: !Ref NodeInstanceType
       MetadataOptions: 
