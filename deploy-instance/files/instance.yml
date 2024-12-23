@@ -538,14 +538,6 @@ Resources:
 
           systemctl restart docker
 
-          echo "Enable login to LB"
-
-          envsubst < /opt/gitconfig  > /home/$username/.gitconfig
-          chown $username:$username /home/$username/.gitconfig
-
-          echo "*/30 * * * * /opt/login-job.sh  1>> /var/log/login-cron.log 2>&1" | crontab -u root -
-          /opt/login-job.sh
-
           env
           echo "Checking custom statrup script /etc/init-userdata.sh"
           if [[ -f "/etc/init-userdata.sh" ]]; then
