@@ -33,8 +33,7 @@
 - name: "Fetch deployed config" 
   set_fact: 
     public_ip: '{{ config_parameter["associatePublicIpAddress"] | default("True") }}'
-    policies_arn: '{{  ManagedPolicyArns +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy", \
-                                                  "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"]  }}'
+    policies_arn: '{{  ManagedPolicyArns +  ["arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy", "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"]  }}'
 - debug: 
     var: public_ip
 
