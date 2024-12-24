@@ -497,7 +497,7 @@ Resources:
             echo "Volume ${DataVolume} is not attached to any instance."
           fi
           
-          aws ec2 wait volume-available --volume-id ${DataVolume} --region ${AWS::Region} --debug
+          aws ec2 wait volume-available --volume-id ${DataVolume} --region ${AWS::Region}
 
           aws ec2 attach-volume \
             --volume-id ${DataVolume} \
