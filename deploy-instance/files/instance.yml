@@ -481,18 +481,18 @@ Resources:
                                 http://169.254.169.254/latest/meta-data/local-ipv4)
 
           echo "Mounting volume ${DataVolume}" 
-          instance_id=$(aws ec2 describe-volumes \
-                          --volume-ids ${DataVolume} \
-                          --query 'Volumes[0].Attachments[0].InstanceId' \
-                          --output text \
-                          --region ${AWS::Region})
+          volume_instance_id=$(aws ec2 describe-volumes \
+                                --volume-ids ${DataVolume} \
+                                --query 'Volumes[0].Attachments[0].InstanceId' \
+                                --output text \
+                                --region ${AWS::Region})
           
-          if [[ -n "$instance_id" ]]; then
-            echo "Volume ${DataVolume} is attached to instance ${instance_id}. Terminating...."
+          if [[ -n "$volume_instance_id" ]]; then
+            echo "Volume ${DataVolume} is attached to instance volume_instance_id. Terminating...."
             aws ec2 terminate-instances \
-              --instance-ids ${instance_id} \
+              --instance-ids $volume_instance_id \
               --region ${AWS::Region}
-            echo "Instance ${instance_id} terminated."
+            echo "Instance $volume_instance_id terminated."
           else
             echo "Volume ${DataVolume} is not attached to any instance."
           fi
