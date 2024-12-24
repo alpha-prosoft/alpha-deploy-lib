@@ -490,7 +490,7 @@ Resources:
                                 --output text \
                                 --region ${AWS::Region})
           
-          if [[ -n "$volume_instance_id" ]]; then
+          if [[ "$volume_instance_id" != "None" ]]; then
             echo "Volume ${DataVolume} is attached to instance volume_instance_id. Terminating...."
             aws ec2 terminate-instances \
               --instance-ids $volume_instance_id \
