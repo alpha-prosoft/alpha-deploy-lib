@@ -204,9 +204,10 @@ Resources:
               - "ssm:GetParameter"
               - "ssm:DeleteParameters"
             Resource:
-              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/private/${ServiceName}/*"
-              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/public/${ServiceName}/*"
-              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/public/${ServiceAlias}/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/private/${ServiceName}/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/private/${ServiceAlias}/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/public/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/public/*"
           - Effect: "Allow"
             Action:
               - "ssm:DescribeParameters"
@@ -425,35 +426,21 @@ Resources:
           echo "InstanceSecurityGroupId=${InstanceSecurityGroup}" >> /etc/environment
           echo "AmiId=${AmiId}" >> /etc/environment
 
-
-          TMP_FILE=$(mktemp)
-          #cp /etc/amazon-cloudwatch-agent.json $TMP_FILE
-          #envsubst '${!ServiceName},
-          #          ${!EnvironmentNameUpper}' \
-          #    < $TMP_FILE | sudo tee /etc/amazon-cloudwatch-agent.json > /dev/null
-          #cat /etc/amazon-cloudwatch-agent.json
-          #echo "RELOAD" > /opt/file_list.txt
-
-
           echo "############ fetct SSH keys #############"
           mkdir -p /home/$username/.ssh
           chown $username:$username /home/$username/.ssh
 
-          key_name="/${EnvironmentNameLower}/${ServiceAlias}/id_rsa"
-          aws secretsmanager get-secret-value \
-               --secret-id "$key_name" \
-               --query SecretString --output text > /home/$username/.ssh/id_rsa
-          
+          key_name="/${EnvironmentNameLower}/keys/${ServiceAlias}/private-key"
+          aws ssm get-parameters-by-path \
+              --path "$key_name" \
+              --with-decryption \
+              --query "Parameters[0].Value" \
+              --output text > /home/$username/.ssh/id_rsa
+                        
           chown $username:$username "/home/$username/.ssh" -R 
           chmod 700 "/home/$username/.ssh" -R 
 
           ssh-keygen -y -f "/home/$username/.ssh/id_rsa" > "/home/$username/.ssh/id_rsa.pub"  
-
-          aws ssm put-parameter \
-            --name "/$EnvironmentNameLower/public/$ServiceAlias/.ssh/id_rsa.pub" \
-            --value "$(cat /home/$username/.ssh/id_rsa.pub | base64 -w0)" \
-            --overwrite \
-            --type "String"
           
           mkdir -p /run/$username
           chown $username:$username /run/$username
@@ -462,9 +449,7 @@ Resources:
           su $username -c "/usr/bin/ssh-agent -a $SSH_AUTH_SOCK"
           su $username -c "/usr/bin/ssh-add /home/$username/.ssh/id_rsa"
 
-
-          echo "###########################################" 
-
+          echo "######### Traefik ######################" 
           if [[ -f /etc/traefik/traefik.toml ]]; then
             echo "Updating traefik config"
             traefik_config_temp=$(mktemp)
@@ -478,21 +463,18 @@ Resources:
             systemctl start auth_server
             systemctl start traefik
           fi
+          echo "###########################################"
 
+          SESSION_TOKEN="$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+                                       -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")"
 
-          #log_dirs=${LogDirs}
-          #for i in ${!log_dirs//,/ }
-          #do
-          #    echo "$i" >> /opt/dir_list.txt
-          #done
-          #/opt/reload-cloudwatch-agent.sh
-
-          INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-          PRIVATE_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+          INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $SESSION_TOKEN" \
+                               http://169.254.169.254/latest/meta-data/instance-id)
+          PRIVATE_IP=$(curl -s -H "X-aws-ec2-metadata-token: $SESSION_TOKEN" \
+                                http://169.254.169.254/latest/meta-data/local-ipv4)
 
           echo "Mounting volume ${DataVolume}" 
           aws ec2 wait volume-available --volume-id ${DataVolume} --region ${AWS::Region} --debug
-
 
           aws ec2 attach-volume \
             --volume-id ${DataVolume} \
