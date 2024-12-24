@@ -229,6 +229,13 @@ Resources:
               - "cloudformation:SignalResource"
             Resource:
               - "*"
+          - Effect: Allow
+            Action: ec2:TerminateInstances
+            Resource: !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/ServiceName': !Ref ServiceName
+
                 
       Roles:
         - !Ref InstanceRole
@@ -430,7 +437,7 @@ Resources:
           mkdir -p /home/$username/.ssh
           chown $username:$username /home/$username/.ssh
 
-          key_name="/${EnvironmentNameLower}/keys/${ServiceAlias}/private-key"
+          key_name="/${EnvironmentNameLower}/keys/private/${ServiceAlias}/private-key"
           aws ssm get-parameters-by-path \
               --path "$key_name" \
               --with-decryption \
@@ -474,6 +481,22 @@ Resources:
                                 http://169.254.169.254/latest/meta-data/local-ipv4)
 
           echo "Mounting volume ${DataVolume}" 
+          instance_id=$(aws ec2 describe-volumes \
+                          --volume-ids ${DataVolume} \
+                          --query 'Volumes[0].Attachments[0].InstanceId' \
+                          --output text \
+                          --region ${AWS::Region})
+          
+          if [[ -n "$instance_id" ]]; then
+            echo "Volume ${DataVolume} is attached to instance ${instance_id}. Terminating...."
+            aws ec2 terminate-instances \
+              --instance-ids ${instance_id} \
+              --region ${AWS::Region}
+            echo "Instance ${instance_id} terminated."
+          else
+            echo "Volume ${DataVolume} is not attached to any instance."
+          fi
+          
           aws ec2 wait volume-available --volume-id ${DataVolume} --region ${AWS::Region} --debug
 
           aws ec2 attach-volume \
@@ -554,3 +577,5 @@ Resources:
               --logical-resource-id "ServiceAutoScalingGroup" \
               --unique-id "${!INSTANCE_ID}"  \
               --status "SUCCESS"
+
+
