@@ -467,6 +467,9 @@ Resources:
             cp /etc/traefik/config/config.toml $traefik_config_temp 
             envsubst < $traefik_config_temp > /etc/traefik/config/config.toml 
 
+            chmod 744 /etc/traefik/config/config.toml
+            chmod 744 /etc/traefik/traefik.toml
+
             systemctl start auth_server
             systemctl start traefik
           fi
