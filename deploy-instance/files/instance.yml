@@ -96,7 +96,7 @@ Parameters:
     
 Conditions:
   HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ]]
-  IsInternal: !Equals [ !Ref LoadBalancerScheme, "internal" ]
+  IsPrivate: !Equals [ !Ref LoadBalancerScheme, "internal" ]
 
 Resources:
   InstanceRole:
