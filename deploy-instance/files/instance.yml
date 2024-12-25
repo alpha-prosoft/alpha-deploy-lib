@@ -49,6 +49,12 @@ Parameters:
   PrivateHostedZoneName:
     Type: String
 
+  PublicHostedZoneId:
+    Type: String
+  PublicHostedZoneName:
+    Type: String
+
+
   Region:
     Type: String
   AccountId:
@@ -84,9 +90,13 @@ Parameters:
 
   AssociatePublicIpAddress: 
     Type: String
+
+  LoadBalancerScheme:
+    Type: String
     
 Conditions:
   HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ]]
+  IsInternal: !Equals [ !Ref LoadBalancerScheme, "internal" ]
 
 Resources:
   InstanceRole:
@@ -186,6 +196,7 @@ Resources:
               - route53:*
             Resource:
               - !Sub "arn:aws:route53:::hostedzone/${PrivateHostedZoneId}"
+              - !Sub "arn:aws:route53:::hostedzone/${PublicHostedZoneId}"
           - Effect: "Allow"
             Action:
               - "ec2:AttachVolume"
@@ -317,9 +328,15 @@ Resources:
         - email
         - profile
       CallbackURLs:
-        - !Sub "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
+        - !If
+        - - IsPrivate 
+          - !Sub "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
+          - !Sub "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
       ClientName: !Sub "${EnvironmentNameLower}-${ServiceName}-client"
-      DefaultRedirectURI: !Sub  "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
+      DefaultRedirectURI: !If 
+      - IsPrivate 
+      - !Sub  "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
+      - !Sub  "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
       GenerateSecret: True
       SupportedIdentityProviders:
         - COGNITO
@@ -341,16 +358,25 @@ Resources:
       Conditions:
         - Field: host-header
           Values:
-            - !Sub "${ServiceAlias}.${PrivateHostedZoneName}"
+            - !If 
+            - - IsPrivate 
+              - !Sub "${ServiceAlias}.${PrivateHostedZoneName}"
+              - !Sub "${ServiceAlias}.${PublicHostedZoneName}"
       ListenerArn: !Ref LoadBalancerListenerArn
       Priority: !Ref Priority
 
   ServiceDNSRecord:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: !Sub '${PrivateHostedZoneId}'
+      HostedZoneId: !If 
+      - IsPrivate 
+      - !Sub '${PrivateHostedZoneId}'
+      - !Sub '${PublicHostedZoneId}'
       Comment: "DNS name for Application Load Balancer"
-      Name: !Sub '${ServiceAlias}.${PrivateHostedZoneName}.'
+      Name: !If 
+      - IsPrivate
+      - !Sub '${ServiceAlias}.${PrivateHostedZoneName}.'
+      - !Sub '${ServiceAlias}.${PublicHostedZoneName}.'
       Type: A
       AliasTarget:
         HostedZoneId: !Ref LoadBalancerCanonicalHostedZoneID
@@ -404,6 +430,8 @@ Resources:
 
           export VPCId="${VPCId}"
           export PrivateHostedZoneName="${PrivateHostedZoneName}"
+          export PublicHostedZoneName="${PublicHostedZoneName}"
+          export LoadBalancerScheme="${LoadBalancerScheme}"
           export Region="${AWS::Region}"
           export AccountId="${AccountId}"
           export VerifyApiUrl="${VerifyApiUrl}"
@@ -423,6 +451,8 @@ Resources:
           echo "ServiceAlias=${ServiceAlias}" >> /etc/environment
           echo "VPCId=${VPCId}" >> /etc/environment
           echo "PrivateHostedZoneName=${PrivateHostedZoneName}" >> /etc/environment
+          echo "PublicHostedZoneName=${PublicHostedZoneName}" >> /etc/environment
+          echo "LoadBalancerScheme=${LoadBalancerScheme}" >> /etc/environment
           echo "Region=${AWS::Region}" >> /etc/environment
           echo "AccountId=${AccountId}" >> /etc/environment
           echo "VerifyApiUrl=${VerifyApiUrl}" >> /etc/environment
