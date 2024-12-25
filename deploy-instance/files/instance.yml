@@ -329,7 +329,7 @@ Resources:
         - profile
       CallbackURLs:
         - !If
-        - - IsPrivate 
+          - IsPrivate 
           - !Sub "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
           - !Sub "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
       ClientName: !Sub "${EnvironmentNameLower}-${ServiceName}-client"
@@ -359,7 +359,7 @@ Resources:
         - Field: host-header
           Values:
             - !If 
-            - - IsPrivate 
+              - IsPrivate 
               - !Sub "${ServiceAlias}.${PrivateHostedZoneName}"
               - !Sub "${ServiceAlias}.${PublicHostedZoneName}"
       ListenerArn: !Ref LoadBalancerListenerArn
