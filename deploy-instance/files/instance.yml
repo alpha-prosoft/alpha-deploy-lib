@@ -486,25 +486,6 @@ Resources:
           su $username -c "/usr/bin/ssh-agent -a $SSH_AUTH_SOCK"
           su $username -c "/usr/bin/ssh-add /home/$username/.ssh/id_rsa"
 
-          echo "######### Traefik ######################" 
-          if [[ -f /etc/traefik/traefik.toml ]]; then
-            echo "Updating traefik config"
-            traefik_config_temp=$(mktemp)
-            cp /etc/traefik/traefik.toml $traefik_config_temp 
-            envsubst < $traefik_config_temp > /etc/traefik/traefik.toml 
-
-            traefik_config_temp=$(mktemp)
-            cp /etc/traefik/config/config.toml $traefik_config_temp 
-            envsubst < $traefik_config_temp > /etc/traefik/config/config.toml 
-
-            chmod 744 /etc/traefik/config/config.toml
-            chmod 744 /etc/traefik/traefik.toml
-
-            systemctl start auth_server
-            systemctl start traefik
-          fi
-          echo "###########################################"
-
           SESSION_TOKEN="$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
                                        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")"
 
