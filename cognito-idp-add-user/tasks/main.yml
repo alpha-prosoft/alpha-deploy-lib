@@ -61,7 +61,7 @@
         --user-pool-id "${userpool_id}" \
         --client-id "${client_id}" \
         --challenge-name NEW_PASSWORD_REQUIRED \
-        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name=${username},SECRET_HASH=${secret_hash}" \
+        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name={{ username }},SECRET_HASH=${secret_hash}" \
         --session "${session}"
 
 
@@ -84,7 +84,12 @@
       export secret_value="$(aws secretsmanager get-secret-value \
                               --query "SecretString" --output text \
         	                  --secret-id "${secret_id}")"
-      echo ${secret_value}
+      
+      aws cognito-idp admin-update-user-attributes \
+            --user-pool-id${userpool_id} \
+            --username ${username} \
+            --user-attributes Name="name",Value="{{ username }}"
+            
       auth=$(aws cognito-idp admin-initiate-auth \
              --user-pool-id "${userpool_id}" \
              --client-id "${client_id}" \
