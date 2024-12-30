@@ -111,7 +111,7 @@
     
 - name: 'Restore custom policy'
   set_fact:
-    final_params: '{{ applicable_params | combine( {"CustomPolicy" : custom_policy | to_json } )}}'
+    applicable_params: '{{ applicable_params | combine( {"CustomPolicy" : custom_policy | to_json } )}}'
   when: '"CustomPolicy" in applicable_params'
 
 - debug:
