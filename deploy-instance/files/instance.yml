@@ -73,8 +73,10 @@ Parameters:
 
   AuthUserPoolId:
     Type: String
+    
   AuthUserPoolDomain:
     Type: String
+    
   ServiceAlias:
     Type: String
 
@@ -432,6 +434,7 @@ Resources:
           export Region="${AWS::Region}"
           export AccountId="${AccountId}"
           export AuthUserPoolDomain="${AuthUserPoolDomain}"
+          export AuthUserPoolId="${AuthUserPoolId}"
           export AmiId="${AmiId}"
           
 
@@ -452,6 +455,7 @@ Resources:
           echo "Region=${AWS::Region}" >> /etc/environment
           echo "AccountId=${AccountId}" >> /etc/environment
           echo "AuthUserPoolDomain=${AuthUserPoolDomain}" >> /etc/environment
+          echo "AuthUserPoolId=${AuthUserPoolId}" >> /etc/environment
           echo "InstanceProfileArn=${InstanceProfile.Arn}" >> /etc/environment
           echo "PrivateSubnet1A=${PrivateSubnet1A}" >> /etc/environment
           echo "PrivateSubnet2A=${PrivateSubnet2A}" >> /etc/environment
