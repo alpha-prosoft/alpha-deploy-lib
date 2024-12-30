@@ -97,7 +97,7 @@
 
 - name: 'Set applicable params params'
   set_fact:
-    applicable_params: '{{ final_params.stdout | from_json }}'
+    applicable_params: '{{ final_params.stdout_lines | last | from_json }}'
     
 - debug:
     msg: "=== Executing deployment with stack {{ final_stack_name }} ==="
@@ -111,8 +111,8 @@
     
 - name: 'Restore custom policy'
   set_fact:
-    final_params: '{{ final_params | combine( {"CustomPolicy" : custom_policy | to_json } )}}'
-  when: '"CustomPolicy" in final_params'
+    final_params: '{{ applicable_params | combine( {"CustomPolicy" : custom_policy | to_json } )}}'
+  when: '"CustomPolicy" in applicable_params'
 
 - debug:
     var: applicable_params
