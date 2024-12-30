@@ -87,7 +87,7 @@
 
       export name="{{ username }}"
       aws cognito-idp admin-update-user-attributes \
-            --user-pool-id${userpool_id} \
+            --user-pool-id ${userpool_id} \
             --username ${username} \
             --user-attributes Name="name",Value="${name^}"
             
