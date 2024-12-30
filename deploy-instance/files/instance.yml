@@ -59,9 +59,6 @@ Parameters:
     Type: String
   AccountId:
     Type: String
-  VerifyApiUrl:
-    Type: String
-    Default: ""
   Priority:
     Type: String
   LogDirs:
@@ -434,7 +431,6 @@ Resources:
           export LoadBalancerScheme="${LoadBalancerScheme}"
           export Region="${AWS::Region}"
           export AccountId="${AccountId}"
-          export VerifyApiUrl="${VerifyApiUrl}"
           export AuthUserPoolDomain="${AuthUserPoolDomain}"
           export AmiId="${AmiId}"
           
@@ -455,7 +451,6 @@ Resources:
           echo "LoadBalancerScheme=${LoadBalancerScheme}" >> /etc/environment
           echo "Region=${AWS::Region}" >> /etc/environment
           echo "AccountId=${AccountId}" >> /etc/environment
-          echo "VerifyApiUrl=${VerifyApiUrl}" >> /etc/environment
           echo "AuthUserPoolDomain=${AuthUserPoolDomain}" >> /etc/environment
           echo "InstanceProfileArn=${InstanceProfile.Arn}" >> /etc/environment
           echo "PrivateSubnet1A=${PrivateSubnet1A}" >> /etc/environment
