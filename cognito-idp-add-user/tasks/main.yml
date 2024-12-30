@@ -84,11 +84,12 @@
       export secret_value="$(aws secretsmanager get-secret-value \
                               --query "SecretString" --output text \
         	                  --secret-id "${secret_id}")"
-      
+
+      export name="{{ username }}"
       aws cognito-idp admin-update-user-attributes \
             --user-pool-id${userpool_id} \
             --username ${username} \
-            --user-attributes Name="name",Value="{{ username }}"
+            --user-attributes Name="name",Value="${name^}"
             
       auth=$(aws cognito-idp admin-initiate-auth \
              --user-pool-id "${userpool_id}" \
