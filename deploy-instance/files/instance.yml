@@ -462,6 +462,39 @@ Resources:
           echo "InstanceSecurityGroupId=${InstanceSecurityGroup}" >> /etc/environment
           echo "AmiId=${AmiId}" >> /etc/environment
 
+
+          cat <<EOF > /etc/environment.json
+          {
+              "Username": "$username",
+              "EnvironmentNameUpper": "${EnvironmentNameUpper}",
+              "EnvironmentNameLower": "${EnvironmentNameLower}",
+              "EnvironmentNameLower": "${EnvironmentNameLower}",
+              "EnvironmentNameUpper": "${EnvironmentNameUpper}",
+              "EnvironmentNameUpper": "${EnvironmentNameUpper}",
+              "EnvironmentNameLower": "${EnvironmentNameLower}",
+              "ServiceName": "${ServiceName}",
+              "ServiceAlias": "${ServiceAlias}",
+              "VPCId": "${VPCId}",
+              "PrivateHostedZoneName": "${PrivateHostedZoneName}",
+              "PublicHostedZoneName": "${PublicHostedZoneName}",
+              "LoadBalancerScheme": "${LoadBalancerScheme}",
+              "Region": "${AWS::Region}",
+              "AccountId": "${AccountId}",
+              "AuthUserPoolDomain": "${AuthUserPoolDomain}",
+              "AuthUserPoolId": "${AuthUserPoolId}",
+              "InstanceProfileArn": "${InstanceProfile.Arn}",
+              "PrivateSubnet1A": "${PrivateSubnet1A}",
+              "PrivateSubnet2A": "${PrivateSubnet2A}",
+              "InstanceSecurityGroupId": "${InstanceSecurityGroup}",
+              "AmiId": "${AmiId}"
+          }
+          EOF
+          
+          echo "############ env.json ####################"
+          cat /etc/environment.json | jq
+          echo "##########################################"
+
+
           echo "############ fetct SSH keys #############"
           mkdir -p /home/$username/.ssh
           chown $username:$username /home/$username/.ssh
