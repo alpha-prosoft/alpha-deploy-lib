@@ -73,10 +73,10 @@ Parameters:
 
   AuthUserPoolId:
     Type: String
-    
+
   AuthUserPoolDomain:
     Type: String
-    
+
   ServiceAlias:
     Type: String
 
@@ -87,15 +87,21 @@ Parameters:
   ManagedPolicyArns:
     Type: CommaDelimitedList
 
-  AssociatePublicIpAddress: 
+  AssociatePublicIpAddress:
     Type: String
 
   LoadBalancerScheme:
     Type: String
-    
+
+  AuthUserPoolIdentityProvider:
+    Type: String
+    Default: "-"
+
+
 Conditions:
-  HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ]]
+  HasCustomPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ] ]
   IsPrivate: !Equals [ !Ref LoadBalancerScheme, "internal" ]
+  HasIdentityProvider: !Not [ !Equals [ !Ref AuthUserPoolIdentityProvider, "-" ] ]
 
 Resources:
   InstanceRole:
@@ -120,7 +126,7 @@ Resources:
       VpcId: !Ref VPCId
       GroupDescription: Additional access to the Service
       SecurityGroupIngress:
-        - CidrIp: !Ref VPCCidr 
+        - CidrIp: !Ref VPCCidr
           IpProtocol: tcp
           FromPort: 22
           ToPort: 30000
@@ -246,7 +252,7 @@ Resources:
               StringEquals:
                 'ec2:ResourceTag/ServiceName': !Ref ServiceName
 
-                
+
       Roles:
         - !Ref InstanceRole
 
@@ -328,19 +334,23 @@ Resources:
         - profile
       CallbackURLs:
         - !If
-          - IsPrivate 
+          - IsPrivate
           - !Sub "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
           - !Sub "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
       ClientName: !Sub "${EnvironmentNameLower}-${ServiceName}-client"
-      DefaultRedirectURI: !If 
-      - IsPrivate 
-      - !Sub  "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
-      - !Sub  "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
+      DefaultRedirectURI: !If
+        - IsPrivate
+        - !Sub  "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
+        - !Sub  "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
       GenerateSecret: True
       SupportedIdentityProviders:
+        - !If
+          - HasIdentityProvider
+          - !Ref AuthUserPoolIdentityProvider
+          - !Ref AWS::NoValue
         - COGNITO
       UserPoolId: !Ref AuthUserPoolId
-      
+
   InstanceListenerRule:
     Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
     Properties:
@@ -348,17 +358,17 @@ Resources:
         - Type: authenticate-cognito
           Order: 1
           AuthenticateCognitoConfig:
-            UserPoolArn:  !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${AuthUserPoolId}"
+            UserPoolArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${AuthUserPoolId}"
             UserPoolClientId: !Ref AuthUserPoolClient
-            UserPoolDomain:  !Ref AuthUserPoolDomain
+            UserPoolDomain: !Ref AuthUserPoolDomain
         - Type: forward
           Order: 2
           TargetGroupArn: !Ref TargetGroup
       Conditions:
         - Field: host-header
           Values:
-            - !If 
-              - IsPrivate 
+            - !If
+              - IsPrivate
               - !Sub "${ServiceAlias}.${PrivateHostedZoneName}"
               - !Sub "${ServiceAlias}.${PublicHostedZoneName}"
       ListenerArn: !Ref LoadBalancerListenerArn
@@ -367,15 +377,15 @@ Resources:
   ServiceDNSRecord:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: !If 
-      - IsPrivate 
-      - !Sub '${PrivateHostedZoneId}'
-      - !Sub '${PublicHostedZoneId}'
+      HostedZoneId: !If
+        - IsPrivate
+        - !Sub '${PrivateHostedZoneId}'
+        - !Sub '${PublicHostedZoneId}'
       Comment: "DNS name for Application Load Balancer"
-      Name: !If 
-      - IsPrivate
-      - !Sub '${ServiceAlias}.${PrivateHostedZoneName}.'
-      - !Sub '${ServiceAlias}.${PublicHostedZoneName}.'
+      Name: !If
+        - IsPrivate
+        - !Sub '${ServiceAlias}.${PrivateHostedZoneName}.'
+        - !Sub '${ServiceAlias}.${PublicHostedZoneName}.'
       Type: A
       AliasTarget:
         HostedZoneId: !Ref LoadBalancerCanonicalHostedZoneID
@@ -394,9 +404,9 @@ Resources:
       AssociatePublicIpAddress: !Ref AssociatePublicIpAddress
       ImageId: !Ref AmiId
       InstanceType: !Ref NodeInstanceType
-      MetadataOptions: 
-          HttpEndpoint: enabled
-          HttpPutResponseHopLimit: 3
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 3
       SecurityGroups:
         - !Ref InstanceSecurityGroup
       IamInstanceProfile: !Ref InstanceProfile
@@ -437,7 +447,7 @@ Resources:
           export AuthUserPoolId="${AuthUserPoolId}"
           export AmiId="${AmiId}"
           
-
+          
           echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin" >> /etc/environment
           echo "Username=$username" >> /etc/environment
           echo "EnvironmentNameUpper=${EnvironmentNameUpper}" >> /etc/environment
@@ -505,7 +515,7 @@ Resources:
               --with-decryption \
               --query "Parameter.Value" \
               --output text > /home/$username/.ssh/id_rsa
-                        
+          
           chown $username:$username "/home/$username/.ssh" -R 
           chmod 700 "/home/$username/.ssh" -R 
 
@@ -616,7 +626,7 @@ Resources:
                                   }
                                ]
                             }'
-
+          
           
           aws cloudformation signal-resource \
               --stack-name "${AWS::StackName}" \
