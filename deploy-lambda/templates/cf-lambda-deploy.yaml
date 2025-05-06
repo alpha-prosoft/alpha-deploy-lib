@@ -98,11 +98,28 @@ Parameters:
     Type: String
     Default: ""
 
+  LambdaSnapStart:
+    Type: String
+    Default: "False"
+    Description: "Enable SnapStart for the Lambda function. Valid for Java runtimes."
+    AllowedValues:
+      - "True"
+      - "False"
+      - "true"
+      - "false"
+
+  LambdaProvisionedConcurrency:
+    Type: Number
+    Description: "Amount of provisioned concurrency to allocate for the function. Set to 0 to disable. Often used with SnapStart."
+    Default: 0
+
 Conditions:
   ShouldSubscribe: !Or [ !Equals [ !Ref SubscribeDb, "True" ], !Equals [ !Ref SubscribeDb, "true" ] ]
   IsEnableImport: !Or [ !Equals [ !Ref EnableImport, "True" ], !Equals [ !Ref EnableImport, "true" ] ]
   IsInVpc: !Equals [ !Ref Deployment, "VPC" ]
   HasCustmPolicy: !Not [ !Equals [ !Ref CustomPolicy, "" ] ]
+  IsSnapStartEnabled: !Or [ !Equals [ !Ref LambdaSnapStart, "True" ], !Equals [ !Ref LambdaSnapStart, "true" ] ]
+  IsProvisionedConcurrencyEnabled: !Not [!Equals [!Ref LambdaProvisionedConcurrency, 0]]
 
 Resources:
   LambdaRole:
@@ -188,11 +205,19 @@ Resources:
       MemorySize: !Sub "${LambdaMemorySize}"
       Timeout: !Sub "${LambdaTimeout}"
       ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
+      ProvisionedConcurrencyConfig: !If
+        - IsProvisionedConcurrencyEnabled
+        - ProvisionedConcurrentExecutions: !Ref LambdaProvisionedConcurrency
+        - !Ref AWS::NoValue
       TracingConfig:
         Mode: "PassThrough"
       Code:
         S3Bucket: !Sub "${DeploymentS3BucketName}"
         S3Key: !Sub "${S3LambdaObjectName}"
+      SnapStart: !If
+        - IsSnapStartEnabled
+        - ApplyOn: PublishedVersions
+        - !Ref AWS::NoValue
       VpcConfig: !If
         - IsInVpc
         - SecurityGroupIds:
