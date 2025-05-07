@@ -10,6 +10,8 @@
     stacks:
       - type: "BASE"
         name: '{{ params["ProjectName"] }}-base'
+      - type: "CORE"
+        name: '{{ params["ProjectName"] }}-base'
       - type: 'DYNAMODB'
         name: '{{ params["ProjectName"] }}-dynamodb-svc'
 
