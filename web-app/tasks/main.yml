@@ -4,6 +4,8 @@
     stacks:
     - type: 'BASE'
       name: '{{ params["ProjectName"] }}-base'
+    - type: 'CORE'
+      name: '{{ params["ProjectName"] }}-base'
 
 - set_fact:
     files: "{{ role_path }}/files"

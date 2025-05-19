@@ -4,6 +4,9 @@
     stacks: 
     - type: 'BASE'
       name: '{{ params["ProjectName"] }}-base'
+    - type: 'CORE'
+      name: '{{ params["ProjectName"] }}-base'
+
 
 - name: "Create machine user"
   environment: '{{ params}}'
