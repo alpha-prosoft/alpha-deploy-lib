@@ -45,6 +45,9 @@ Parameters:
   VPCId:
     Type: String
 
+  ProjectName :
+    Type: String
+
   ServiceName:
     Type: String
 
@@ -234,12 +237,27 @@ Resources:
           PrivateHostedZoneName: !Ref PublicHostedZoneName
           AuthUserPoolId: !Ref AuthUserPoolId
           AuthUserPoolClientId: !Ref AuthUserPoolClientId
-          ServiceName: !Ref ServiceName
+          ServiceName: !Join [ "-", [ !Ref ProjectName, !Ref ServiceName ] ]
           Region: !Ref Region
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
           CustomConfig: !Ref CustomConfig
           MainClass: !Ref MainClass
+
+  LambdaFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Description: !Sub 'Deployment version for ${AWS::StackName} with code from ${S3LambdaObjectName}'
+    DependsOn: LambdaFunction
+    DeletionPolicy: Retain
+
+  LambdaAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Name: "BUILD"
+      FunctionVersion: !GetAtt LambdaFunctionVersion.Version
 
   LambdaInvokeAPIGWPermission:
     Type: "AWS::Lambda::Permission"
@@ -249,6 +267,15 @@ Resources:
       Principal: apigateway.amazonaws.com
     DependsOn:
       - LambdaFunction
+
+  LambdaInvokeAPIGWPermissionAlias:
+    Type: "AWS::Lambda::Permission"
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      FunctionName: !GetAtt LambdaAlias.AliasArn
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
 
   TestCommandsQueue1:
     Type: AWS::SQS::Queue
@@ -500,6 +527,15 @@ Outputs:
   LambdaFunction:
     Description: Arn of the lambda function
     Value: !GetAtt LambdaFunction.Arn
+
+  LambdaFunctionAliasArn:
+    Description: Arn of the lambda function
+    Value: !GetAtt LambdaAlias.AliasArn
+
+  LambdaFunctionVersion:
+    Description: Arn of the lambda function
+    Value: !GetAtt LambdaFunctionVersion.Version
+
   LambdaRoleArn:
     Description: Arn of the lambda function
     Value: !GetAtt LambdaRole.Arn
