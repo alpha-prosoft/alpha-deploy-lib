@@ -58,7 +58,7 @@
 - include_role:
     name: alpha-deploy-lib/cognito-idp-add-user
   vars:
-    username: '{{ params["ServiceName"] }}'
+    username: '{{ function_name }}'
     cognito_groups:
       - non-interactive
 
@@ -83,12 +83,12 @@
       db:
         name: '{{ params["ProjectName"] }}-dynamodb-svc'
       svc:
-        username: "{{ params['ServiceName'] }}@{{ params['PublicHostedZoneName'] }}"
+        username: "{{ function_name }}@{{ params['PublicHostedZoneName'] }}"
         password: "{{ lookup('aws_secret',
                                 '/' +
                                 params['EnvironmentNameLower'] +
                                 '/' +
-                                params['ServiceName'] +
+                                function_name +
                                 '@' +
                                 params['PublicHostedZoneName'] +
                                 '/password') }}"
@@ -112,8 +112,8 @@
     executable: /bin/bash
   shell: |
     set -e
-    if [[ -f '/dist/{{ params["ServiceName"] }}.jar' ]]; then
-       cp /dist/{{ params["ServiceName"] }}.jar /dist/{{ params["ServiceName"] }}.zip
+    if [[ -f '/dist/{{ function_name }}.jar' ]]; then
+       cp /dist/{{ function_name }}.jar /dist/{{ function_name }}.zip
     fi
 
 - name: "Add files to zip"
@@ -133,10 +133,10 @@
     EOF
     
     chmod +x bootstrap 
-    zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json 
-    zip -jrv /dist/{{ params["ServiceName"] }}.zip bootstrap
+    zip -jrv /dist/{{ function_name }}.zip /dist/secret.json 
+    zip -jrv /dist/{{ function_name }}.zip bootstrap
 
-    zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/secret.json
+    zip -jrv /dist/{{ function_name }}.zip /dist/secret.json
 
 - name: 'Download jwks'
   args:
@@ -146,14 +146,14 @@
   environment: '{{ params }}'
 
 - name: "Add cognito jwks to lambda"
-  shell: 'zip -jrv /dist/{{ params["ServiceName"] }}.zip /dist/jwks.json'
+  shell: 'zip -jrv /dist/{{ function_name }}.zip /dist/jwks.json'
 
 
 - name: 'Check if layer exists'
   args:
     executable: /bin/bash
   shell: |
-    if [[ -f '/dist/{{ params["ServiceName"] }}-layer.zip' ]]; then 
+    if [[ -f '/dist/{{ function_name }}-layer.zip' ]]; then 
       echo "true" 
     else 
       echo "false" 
@@ -182,7 +182,7 @@
     bucket: '{{ params["DeploymentS3BucketName"] }}'
     region: '{{ params["Region"] }}'
     mode: put
-    src: '/dist/{{ params["ServiceName"] }}.zip'
+    src: '/dist/{{ function_name }}.zip'
     object: '{{ params["S3LambdaObjectName"] }}'
   environment: '{{ params }}'
 
