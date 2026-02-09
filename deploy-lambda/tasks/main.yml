@@ -122,8 +122,9 @@
   shell: |
     set -e
 
-    bootstrap_file="$(mktemp)" 
-    cat << EOF > bootstrap 
+    bootstrap_dir="$(mktemp -d)"
+    bootstrap_file="${bootstrap_dir}/bootstrap"
+    cat << EOF > "$bootstrap_file"
     #!/bin/sh 
     set -euo pipefail 
     memory="\$((\$AWS_LAMBDA_FUNCTION_MEMORY_SIZE * 9 / 10))" 
@@ -131,12 +132,10 @@
     echo "INIT_ARGS: \${args}" 
     ./lambda_function \${args} -Dedd.main-class="{{ lookup('env', 'MAIN_CLASS') }}" -Dedd.startup-milis="\$(date +%s%3N)" -Dcom.zaxxer.hikari.useWeakReferences=false -Dclojure.tools.logging.factory=lambda.logging/slf4j-json-factory 
     EOF
-    
-    chmod +x bootstrap 
-    zip -jrv /dist/{{ function_name }}.zip /dist/secret.json 
-    zip -jrv /dist/{{ function_name }}.zip bootstrap
 
-    zip -jrv /dist/{{ function_name }}.zip /dist/secret.json
+    chmod +x "$bootstrap_file"
+    zip -jrv /dist/{{ function_name }}.zip /dist/secret.json 
+    zip -jrv /dist/{{ function_name }}.zip "$bootstrap_file"
 
 - name: 'Download jwks'
   args:
