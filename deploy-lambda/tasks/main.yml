@@ -81,7 +81,7 @@
   vars:
     default_secrets:
       db:
-        name: '{{ params["ProjectName"] }}-dynamodb-svc'
+        name: '{{ settings["DatabaseName"] | default(params["DatabaseName"]) }}'
       svc:
         username: "{{ function_name }}@{{ params['PublicHostedZoneName'] }}"
         password: "{{ lookup('aws_secret',
