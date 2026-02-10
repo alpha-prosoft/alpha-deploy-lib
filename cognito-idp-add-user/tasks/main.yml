@@ -3,9 +3,9 @@
   vars:
     stacks: 
     - type: 'BASE'
-      name: '{{ params["ProjectName"] }}-base'
+      name: 'base'
     - type: 'CORE'
-      name: '{{ params["ProjectName"] }}-base'
+      name: 'base'
 
 
 - name: "Create machine user"

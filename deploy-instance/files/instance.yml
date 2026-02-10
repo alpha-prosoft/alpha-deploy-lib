@@ -4,7 +4,7 @@ Parameters:
   VolumePath:
     Type: String
     Description: 'Path to persistance storage where volume will be mounted'
-  ServiceName:
+  ResourceName:
     Type: String
   AmiId:
     Type: String
@@ -118,7 +118,7 @@ Resources:
               - "sts:AssumeRole"
       Path: "/"
       ManagedPolicyArns: !Ref ManagedPolicyArns
-      RoleName: !Sub ${EnvironmentNameLower}-${ServiceName}-Role
+      RoleName: !Sub ${EnvironmentNameLower}-${ResourceName}-Role
 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -140,7 +140,7 @@ Resources:
       Path: /
       Roles:
         - !Ref InstanceRole
-      InstanceProfileName: !Sub ${EnvironmentNameUpper}-${ServiceName}-DaemonServiceNodesInstanceProfile
+      InstanceProfileName: !Sub ${EnvironmentNameUpper}-${ResourceName}-DaemonServiceNodesInstanceProfile
 
   DataVolume:
     Type: AWS::EC2::Volume
@@ -151,12 +151,12 @@ Resources:
       VolumeType: !Ref VolumeType
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentNameUpper}-${ServiceName}-volume
+          Value: !Sub ${EnvironmentNameUpper}-${ResourceName}-volume
 
   InstancePolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Sub ${EnvironmentNameUpper}-${ServiceName}-Volume-Policy
+      PolicyName: !Sub ${EnvironmentNameUpper}-${ResourceName}-Volume-Policy
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -189,7 +189,7 @@ Resources:
               - secretsmanager:DescribeSecret
               - secretsmanager:List*
             Resource:
-              - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentNameLower}/${ServiceName}/*"
+              - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentNameLower}/${ResourceName}/*"
               - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentNameLower}/${ServiceAlias}/*"
           - Effect: "Allow"
             Action:
@@ -220,7 +220,7 @@ Resources:
               - "ssm:GetParameter"
               - "ssm:DeleteParameters"
             Resource:
-              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/private/${ServiceName}/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/private/${ResourceName}/*"
               - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/private/${ServiceAlias}/*"
               - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/public/*"
               - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentNameLower}/keys/public/*"
@@ -250,7 +250,7 @@ Resources:
             Resource: !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
             Condition:
               StringEquals:
-                'ec2:ResourceTag/ServiceName': !Ref ServiceName
+                'ec2:ResourceTag/ResourceName': !Ref ResourceName
 
 
       Roles:
@@ -260,7 +260,7 @@ Resources:
     Type: AWS::IAM::Policy
     Condition: HasCustomPolicy
     Properties:
-      PolicyName: !Sub ${EnvironmentNameUpper}-${ServiceName}-Custom-Policy
+      PolicyName: !Sub ${EnvironmentNameUpper}-${ResourceName}-Custom-Policy
       PolicyDocument: !Ref CustomPolicy
       Roles:
         - !Ref InstanceRole
@@ -281,7 +281,7 @@ Resources:
       TargetType: instance
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentNameUpper}-${ServiceName}-TG
+          Value: !Sub ${EnvironmentNameUpper}-${ResourceName}-TG
 
   ServiceAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -299,7 +299,7 @@ Resources:
       HealthCheckType: ELB
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentNameUpper}-${ServiceName}
+          Value: !Sub ${EnvironmentNameUpper}-${ResourceName}
           PropagateAtLaunch: True
         - Key: DaemonMode
           Value: 'True'
@@ -337,7 +337,7 @@ Resources:
           - IsPrivate
           - !Sub "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
           - !Sub "https://${ServiceAlias}.${PublicHostedZoneName}/oauth2/idpresponse"
-      ClientName: !Sub "${EnvironmentNameLower}-${ServiceName}-client"
+      ClientName: !Sub "${EnvironmentNameLower}-${ResourceName}-client"
       DefaultRedirectURI: !If
         - IsPrivate
         - !Sub  "https://${ServiceAlias}.${PrivateHostedZoneName}/oauth2/idpresponse"
@@ -394,7 +394,7 @@ Resources:
   ServiceLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Ref ServiceName
+      LogGroupName: !Ref ResourceName
       RetentionInDays: 30
 
   ServiceLaunchConfiguration:
@@ -430,7 +430,8 @@ Resources:
           export EnvironmentNameUpper="${EnvironmentNameUpper}"
           export EnvironmentNameUpper="${EnvironmentNameUpper}"
           export EnvironmentNameLower="${EnvironmentNameLower}"
-          export ServiceName="${ServiceName}"
+          export ServiceName="${ResourceName}"
+          export ResourceName="${ResourceName}"
           export ServiceAlias="${ServiceAlias}"
           export InstanceProfileArn="${InstanceProfile.Arn}"
           export PrivateSubnet1A="${PrivateSubnet1A}"
@@ -456,7 +457,8 @@ Resources:
           echo "EnvironmentNameUpper=${EnvironmentNameUpper}" >> /etc/environment
           echo "EnvironmentNameUpper=${EnvironmentNameUpper}" >> /etc/environment
           echo "EnvironmentNameLower=${EnvironmentNameLower}" >> /etc/environment
-          echo "ServiceName=${ServiceName}" >> /etc/environment
+          echo "ServiceName=${ResourceName}" >> /etc/environment
+          echo "ResourceName=${ResourceName}" >> /etc/environment
           echo "ServiceAlias=${ServiceAlias}" >> /etc/environment
           echo "VPCId=${VPCId}" >> /etc/environment
           echo "PrivateHostedZoneName=${PrivateHostedZoneName}" >> /etc/environment
@@ -482,7 +484,8 @@ Resources:
               "EnvironmentNameUpper": "${EnvironmentNameUpper}",
               "EnvironmentNameUpper": "${EnvironmentNameUpper}",
               "EnvironmentNameLower": "${EnvironmentNameLower}",
-              "ServiceName": "${ServiceName}",
+              "ServiceName": "${ResourceName}",
+              "ResourceName": "${ResourceName}",
               "ServiceAlias": "${ServiceAlias}",
               "VPCId": "${VPCId}",
               "PrivateHostedZoneName": "${PrivateHostedZoneName}",

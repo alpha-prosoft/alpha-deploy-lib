@@ -4,7 +4,7 @@ Parameters:
   Region:
     Type: String
 
-  ServiceName:
+  ResourceName:
     Type: String
 
   AliasDomainName:
@@ -92,9 +92,9 @@ Resources:
     Condition: HasAliasDomainName
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+      DomainName: !Join [ "." , [ !Ref ResourceName, !Ref PublicHostedZoneName ] ]
       DomainValidationOptions:
-        - DomainName: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+        - DomainName: !Join [ "." , [ !Ref ResourceName, !Ref PublicHostedZoneName ] ]
           HostedZoneId: !Ref PublicHostedZoneId
 
         - DomainName: !Ref AliasDomainName

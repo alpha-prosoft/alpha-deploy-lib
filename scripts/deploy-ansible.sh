@@ -4,11 +4,8 @@ set -euxo pipefail
 
 echo "Started deploy.sh"
 
-export ProjectName=${1}
-echo "ProjectName ${ProjectName}"
-
-export ServiceName=${2}
-echo "ServiceName ${ServiceName}"
+export ResourceName=${1}
+echo "ResourceName ${ResourceName}"
 
 export EnvironmentNameUpper=${2}
 echo "EnvironmentNameUpper ${EnvironmentNameUpper}"
@@ -44,7 +41,7 @@ if [[ -z "SESSION_TOKEN" ]]; then
   echo "Assuming role in target account"
   SESSION=$(aws sts assume-role \
             --role-arn arn:aws:iam::${TargetAccountId}:role/DeliveryRole \
-            --role-session-name "${ServiceName}-deployment-${BUILD_ID}" \
+            --role-session-name "${ResourceName}-deployment-${BUILD_ID}" \
             --endpoint https://sts.${AWS_DEFAULT_REGION}.amazonaws.com \
             --region ${AWS_DEFAULT_REGION})
 
@@ -136,7 +133,7 @@ RESULT_ROUTE_TABLES=$(for i in $ROUTE_TABLES; do echo "\"${i##*-}\" : \"${i%%:*}
 
 
 priority="$(aws ssm get-parameter \
-         --name "/priority/${ServiceName}" \
+         --name "/priority/${ResourceName}" \
          --query 'Parameter.Value' \
          --output text 2>/dev/null || echo '')"
 
@@ -166,7 +163,7 @@ if [[ -z "${priority}" ]]; then
     --overwrite
 
   aws ssm put-parameter \
-    --name "/priority/${ServiceName}" \
+    --name "/priority/${ResourceName}" \
     --type "String" \
     --value ${priority} \
     --overwrite
@@ -194,7 +191,7 @@ else
           "AWS_SECRET_ACCESS_KEY" : "'${PIPELINE_AWS_SECRET_ACCESS_KEY}'",
           "AWS_DEFAULT_REGION" : "'${AWS_DEFAULT_REGION}'",
           "AccountId" : "'${PIPELINE_ACCOUNT_ID}'",
-          "ServiceName" : "'${ServiceName}'"
+          "ResourceName" : "'${ResourceName}'"
           }')
 fi
 
@@ -223,10 +220,9 @@ params=$(echo "${target_access}" | \
           "EnvironmentNameUpper" : "'${EnvironmentNameUpper}'",
           "EnvironmentNameLower" : "'${EnvironmentNameUpper,,}'",
           "DeploymentS3BucketName" : "'${TargetAccountId}-${EnvironmentNameUpper,,}-deployment'",
-          "RuntimeImage" : "'${ServiceName}-runtime-image:${BUILD_ID}'",
+          "RuntimeImage" : "'${ResourceName}-runtime-image:${BUILD_ID}'",
           "HostedZoneName" : "'${PUBLIC_HOSTED_ZONE_NAME}'",
-          "ProjectName" : "'${ProjectName:-alpha}'",
-          "ServiceName" : "'${ServiceName}'"
+          "ResourceName" : "'${ResourceName}'"
            }')
 
 
@@ -317,7 +313,7 @@ echo "### </ansible-config> ###"""
 # Add here invocation of deploy.py AI!
 echo "Executing python deployment script"                                                  
 python3 $HOME/scripts/deploy.py \
-    --service-name "${ServiceName}" \
+    --service-name "${ResourceName}" \
     --environment "${EnvironmentNameLower}" \
     --region "${AWS_DEFAULT_REGION}" \
     --version "${BUILD_ID}" \

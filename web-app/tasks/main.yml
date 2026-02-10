@@ -3,9 +3,9 @@
   vars:
     stacks:
     - type: 'BASE'
-      name: '{{ params["ProjectName"] }}-base'
+      name: 'base'
     - type: 'CORE'
-      name: '{{ params["ProjectName"] }}-base'
+      name: 'base'
 
 - set_fact:
     files: "{{ role_path }}/files"
@@ -46,7 +46,7 @@
 - set_fact:
     web_config:
       BuildId: '{{ params["BuildId"] }}'
-      ServiceName: '{{ params["ServiceName"] }}'
+      ResourceName: '{{ params["ResourceName"] }}'
       EnvironmentNameLower: '{{ params["EnvironmentNameLower"] }}'
       EnvironmentNameUpper: '{{ params["EnvironmentNameUpper"] }}'
       AuthUserPoolDomain: '{{ params["AuthUserPoolDomain"] }}'
@@ -92,6 +92,6 @@
   delay: 30
   cloudfront_invalidation:
     distribution_id: '{{ params["CloudFrontDistributionId"] }}'
-    caller_reference: '{{ params["ServiceName"] }}-{{ params["BuildId"] }}'
+    caller_reference: '{{ params["ResourceName"] }}-{{ params["BuildId"] }}'
     target_paths:
       - "/*"

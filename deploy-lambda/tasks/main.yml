@@ -9,11 +9,11 @@
   vars:
     stacks:
       - type: "BASE"
-        name: '{{ params["ProjectName"] }}-base'
+        name: 'base'
       - type: "CORE"
-        name: '{{ params["ProjectName"] }}-base'
+        name: 'base'
       - type: 'DYNAMODB'
-        name: '{{ params["ProjectName"] }}-dynamodb-svc'
+        name: 'dynamodb-svc'
 
 - set_fact:
     params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"],

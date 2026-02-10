@@ -1,18 +1,18 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Daemon cluster node
 Parameters:
-  ServiceName:
+  ResourceName:
     Type: String
 
-  ServiceNameAlias1:
-    Type: String
-    Default: ""
-
-  ServiceNameAlias2:
+  ResourceNameAlias1:
     Type: String
     Default: ""
 
-  ServiceNameAlias3:
+  ResourceNameAlias2:
+    Type: String
+    Default: ""
+
+  ResourceNameAlias3:
     Type: String
     Default: ""
 
@@ -110,9 +110,9 @@ Conditions:
   HasAliasDomainName8: !Not [ !Equals [ !Ref AliasDomainName8, "" ] ]
   HasAliasDomainName9: !Not [ !Equals [ !Ref AliasDomainName9, "" ] ]
 
-  HasServiceNameAlias1: !Not [ !Equals [ !Ref ServiceNameAlias1, "" ] ]
-  HasServiceNameAlias2: !Not [ !Equals [ !Ref ServiceNameAlias2, "" ] ]
-  HasServiceNameAlias3: !Not [ !Equals [ !Ref ServiceNameAlias3, "" ] ]
+  HasResourceNameAlias1: !Not [ !Equals [ !Ref ResourceNameAlias1, "" ] ]
+  HasResourceNameAlias2: !Not [ !Equals [ !Ref ResourceNameAlias2, "" ] ]
+  HasResourceNameAlias3: !Not [ !Equals [ !Ref ResourceNameAlias3, "" ] ]
 
 Resources:
   S3Bucket:
@@ -125,7 +125,7 @@ Resources:
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         RestrictPublicBuckets: true
-      BucketName: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-bucket"
+      BucketName: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}-bucket"
       WebsiteConfiguration:
         IndexDocument: index.html
       VersioningConfiguration:
@@ -139,7 +139,7 @@ Resources:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub '${ServiceName}.${PublicHostedZoneName}'
+        Comment: !Sub '${ResourceName}.${PublicHostedZoneName}'
 
   BucketPolicyData:
     Type: AWS::S3::BucketPolicy
@@ -163,17 +163,17 @@ Resources:
       DistributionConfig:
         IPV6Enabled: true
         Origins:
-          - Id: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-bucket"
+          - Id: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}-bucket"
             DomainName: !GetAtt S3Bucket.RegionalDomainName
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${S3BucketOriginAccessIdentiy}'
         Enabled: true
         HttpVersion: 'http2'
         Aliases:
-          - !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
-          - !If [ HasServiceNameAlias1, !Join [ "." , [ !Ref ServiceNameAlias1, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
-          - !If [ HasServiceNameAlias2, !Join [ "." , [ !Ref ServiceNameAlias2, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
-          - !If [ HasServiceNameAlias3, !Join [ "." , [ !Ref ServiceNameAlias3, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
+          - !Join [ "." , [ !Ref ResourceName, !Ref PublicHostedZoneName ] ]
+          - !If [ HasResourceNameAlias1, !Join [ "." , [ !Ref ResourceNameAlias1, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
+          - !If [ HasResourceNameAlias2, !Join [ "." , [ !Ref ResourceNameAlias2, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
+          - !If [ HasResourceNameAlias3, !Join [ "." , [ !Ref ResourceNameAlias3, !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName, !Ref AliasDomainName, !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName2, !Ref AliasDomainName2, !Ref AWS::NoValue ]
           - !If [ HasAliasDomainName3, !Ref AliasDomainName3, !Ref AWS::NoValue ]
@@ -195,7 +195,7 @@ Resources:
           AllowedMethods:
             - GET
             - HEAD
-          TargetOriginId: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ServiceName}-bucket"
+          TargetOriginId: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}-bucket"
           ForwardedValues:
             QueryString: true
             Cookies:
@@ -214,7 +214,7 @@ Resources:
     Type: 'AWS::Route53::RecordSet'
     Properties:
       HostedZoneId: !Ref PublicHostedZoneId
-      Name: !Join [ "." , [ !Ref ServiceName, !Ref PublicHostedZoneName ] ]
+      Name: !Join [ "." , [ !Ref ResourceName, !Ref PublicHostedZoneName ] ]
       Type: A
       AliasTarget:
         HostedZoneId: "Z2FDTNDATAQYW2"
@@ -223,10 +223,10 @@ Resources:
 
   CloudFrontDNSRecordAlias1:
     Type: 'AWS::Route53::RecordSet'
-    Condition: HasServiceNameAlias1
+    Condition: HasResourceNameAlias1
     Properties:
       HostedZoneId: !Ref PublicHostedZoneId
-      Name: !Join [ "." , [ !Ref ServiceNameAlias1, !Ref PublicHostedZoneName ] ]
+      Name: !Join [ "." , [ !Ref ResourceNameAlias1, !Ref PublicHostedZoneName ] ]
       Type: A
       AliasTarget:
         HostedZoneId: "Z2FDTNDATAQYW2"
@@ -235,10 +235,10 @@ Resources:
 
   CloudFrontDNSRecordAlias2:
     Type: 'AWS::Route53::RecordSet'
-    Condition: HasServiceNameAlias2
+    Condition: HasResourceNameAlias2
     Properties:
       HostedZoneId: !Ref PublicHostedZoneId
-      Name: !Join [ "." , [ !Ref ServiceNameAlias2, !Ref PublicHostedZoneName ] ]
+      Name: !Join [ "." , [ !Ref ResourceNameAlias2, !Ref PublicHostedZoneName ] ]
       Type: A
       AliasTarget:
         HostedZoneId: "Z2FDTNDATAQYW2"
@@ -246,10 +246,10 @@ Resources:
 
   CloudFrontDNSRecordAlias3:
     Type: 'AWS::Route53::RecordSet'
-    Condition: HasServiceNameAlias3
+    Condition: HasResourceNameAlias3
     Properties:
       HostedZoneId: !Ref PublicHostedZoneId
-      Name: !Join [ "." , [ !Ref ServiceNameAlias3, !Ref PublicHostedZoneName ] ]
+      Name: !Join [ "." , [ !Ref ResourceNameAlias3, !Ref PublicHostedZoneName ] ]
       Type: A
       AliasTarget:
         HostedZoneId: "Z2FDTNDATAQYW2"
@@ -260,7 +260,7 @@ Resources:
     Type: 'AWS::Route53::RecordSet'
     Properties:
       HostedZoneId: !Ref PublicHostedZoneId
-      Name: !Join [ "" , [ !Ref ServiceName, "-*.", !Ref PublicHostedZoneName ] ]
+      Name: !Join [ "" , [ !Ref ResourceName, "-*.", !Ref PublicHostedZoneName ] ]
       Type: A
       AliasTarget:
         HostedZoneId: "Z2FDTNDATAQYW2"

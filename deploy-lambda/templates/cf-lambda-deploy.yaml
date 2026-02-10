@@ -45,10 +45,7 @@ Parameters:
   VPCId:
     Type: String
 
-  ProjectName :
-    Type: String
-
-  ServiceName:
+  ResourceName:
     Type: String
 
   PublicHostedZoneName:
@@ -240,7 +237,8 @@ Resources:
           PrivateHostedZoneName: !Ref PublicHostedZoneName
           AuthUserPoolId: !Ref AuthUserPoolId
           AuthUserPoolClientId: !Ref AuthUserPoolClientId
-          ServiceName: !Join [ "-", [ !Ref ProjectName, !Ref ServiceName ] ]
+          ResourceName: !Ref ResourceName
+          ServiceName: !Ref ResourceName
           Region: !Ref Region
           BuildId: !Ref BuildId
           AccountId: !Sub "${AWS::AccountId}"
@@ -285,7 +283,7 @@ Resources:
   TestCommandsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-test-${ProjectName}-${ServiceName}-commands-1.fifo"
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ResourceName}-commands-1.fifo"
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
@@ -293,7 +291,7 @@ Resources:
   ProdCommandsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-prod-${ProjectName}-${ServiceName}-commands-1.fifo"
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ResourceName}-commands-1.fifo"
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
@@ -301,7 +299,7 @@ Resources:
   TestEventsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-test-${ProjectName}-${ServiceName}-events-1.fifo"
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ResourceName}-events-1.fifo"
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
@@ -309,7 +307,7 @@ Resources:
   ProdEventsQueue1:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-prod-${ProjectName}-${ServiceName}-events-1.fifo"
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ResourceName}-events-1.fifo"
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
@@ -417,7 +415,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref LambdaFunction
       Principal: s3.amazonaws.com
-      SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ProjectName}-${ServiceName}-import'
+      SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}-import'
       SourceAccount: !Ref AWS::AccountId
 
   LambdaBucketPolicy:
@@ -441,7 +439,7 @@ Resources:
     DependsOn:
       - S3QueuePermissions
     Properties:
-      BucketName: !Sub '${AWS::AccountId}-${EnvironmentNameLower}-${ProjectName}-${ServiceName}'
+      BucketName: !Sub '${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}'
       NotificationConfiguration:
         QueueConfigurations:
           - Event: s3:ObjectCreated:*
@@ -481,14 +479,14 @@ Resources:
               - !Sub "arn:aws:s3:::${Bucket}"
             Condition:
               StringLike:
-                "aws:PrincipalArn": !Sub "arn:aws:iam::${AWS::AccountId}:role/${EnvironmentNameUpper}-${ProjectName}-${ServiceName}-*"
+                "aws:PrincipalArn": !Sub "arn:aws:iam::${AWS::AccountId}:role/${EnvironmentNameUpper}-${ResourceName}-*"
       Bucket: !Ref Bucket
 
   S3Queue:
     Type: AWS::SQS::Queue
     Condition: IsEnableImport
     Properties:
-      QueueName: !Sub "${EnvironmentNameLower}-${ProjectName}-${ServiceName}-s3"
+      QueueName: !Sub "${EnvironmentNameLower}-${ResourceName}-s3"
       DelaySeconds: 0
       VisibilityTimeout: 120
 
@@ -522,7 +520,7 @@ Resources:
             Resource: !GetAtt S3Queue.Arn
             Condition:
               ArnLike:
-                aws:SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ProjectName}-${ServiceName}'
+                aws:SourceArn: !Sub 'arn:aws:s3:::${AWS::AccountId}-${EnvironmentNameLower}-${ResourceName}'
 
       Queues:
         - !Ref S3Queue

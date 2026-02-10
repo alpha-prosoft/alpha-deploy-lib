@@ -13,7 +13,7 @@
 - name: 'Create signing key'
   shell: |
     set -e
-    key_name="/${EnvironmentNameLower}/android/{{ params["ServiceName"] }}/key-rsa"
+    key_name="/${EnvironmentNameLower}/android/{{ params["ResourceName"] }}/key-rsa"
     key=$(aws secretsmanager get-secret-value --secret-id "${key_name}" || echo '')
     if [ -z "${key}" ]; then
      keytool -genkey -v \
@@ -109,7 +109,7 @@
     export APP_CENTER_TOKEN=${APP_CENTER_TOKEN}
 
     org="Alpha-Prosoft"
-    app_name="{{ params["ServiceName"] }}-{{ params["EnvironmentNameLower"] }}"
+    app_name="{{ params["ResourceName"] }}-{{ params["EnvironmentNameLower"] }}"
 
     app=$(appcenter apps show \
                  --app "${org}/${app_name}" \

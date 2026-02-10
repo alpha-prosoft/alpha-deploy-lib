@@ -18,10 +18,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def cloudformationName(environment_zone, environment_name_lower, service_name):
+def cloudformationName(environment_zone, environment_name_lower, resource_name):
     """Constructs the standard CloudFormation stack name."""
-    logger.debug(f"Generating CloudFormation stack name for {service_name} in {environment_zone}-{environment_name_lower.upper()}")
-    return f"{environment_zone}-{environment_name_lower.upper()}-{service_name}"
+    logger.debug(f"Generating CloudFormation stack name for {resource_name} in {environment_zone}-{environment_name_lower.upper()}")
+    return f"{environment_zone}-{environment_name_lower.upper()}-{resource_name}"
 
 def getStackOutputs(cf_client, stack_name):
     """Fetches and returns outputs for a single CloudFormation stack."""
@@ -158,7 +158,7 @@ def startDeployment(args):
         logger.info("Initializing CloudFormation client...")
         cf_client = boto3.client('cloudformation', region_name=args.aws_region)
 
-    target_stack_name = cloudformationName(args.environment_zone, args.environment_name_lower, args.service_name)
+    target_stack_name = cloudformationName(args.environment_zone, args.environment_name_lower, args.resource_name)
 
     logger.info(f"Starting deployment process for target stack: {target_stack_name}")
     processDeployment(cf_client, target_stack_name, args, final_deployment_params)
@@ -391,11 +391,11 @@ def main():
         default=os.getenv("DEPLOY_PARENT_STACK_NAMES")
     )
     parser.add_argument(
-        "-s", "--service-name",
+        "-s", "--resource-name",
         required=False, # Check performed after parsing
-        help="Name of the service being deployed. Env: DEPLOY_SERVICE_NAME",
-        metavar="DEPLOY_SERVICE_NAME",
-        default=os.getenv("DEPLOY_SERVICE_NAME")
+        help="Name of the resource being deployed. Env: DEPLOY_RESOURCE_NAME",
+        metavar="DEPLOY_RESOURCE_NAME",
+        default=os.getenv("DEPLOY_RESOURCE_NAME")
     )
     parser.add_argument(
         "--build-id",
@@ -420,7 +420,7 @@ def main():
         'aws_region': args.aws_region,
         'environment_name_lower': args.environment_name_lower,
         'environment_zone': args.environment_zone,
-        'service_name': args.service_name,
+        'resource_name': args.resource_name,
         'build_id': args.build_id # Add build_id to required checks
     }
 
@@ -434,7 +434,7 @@ def main():
             'aws_region': ('-r/--aws-region', 'DEPLOY_REGION'),
             'environment_name_lower': ('-e/--environment-name-lower', 'DEPLOY_ENV_NAME'),
             'environment_zone': ('-z/--environment-zone', 'DEPLOY_ZONE'),
-            'service_name': ('-s/--service-name', 'DEPLOY_SERVICE_NAME'),
+            'resource_name': ('-s/--resource-name', 'DEPLOY_RESOURCE_NAME'),
             'build_id': ('--build-id', 'DEPLOY_BUILD_ID') # Add build_id mapping
         }
         for arg_name in missing_args:
@@ -451,7 +451,7 @@ def main():
     logger.info(f"  Account ID: {args.account_id}")
     logger.info(f"  Environment Name: {args.environment_name_lower}")
     logger.info(f"  Environment Zone: {args.environment_zone}")
-    logger.info(f"  Service Name: {args.service_name}")
+    logger.info(f"  Resource Name: {args.resource_name}")
     logger.info(f"  Parent CloudFormations: {args.parent_cloudformations if args.parent_cloudformations else 'None'}")
     logger.info(f"  Parameters File: {args.parameters_file if args.parameters_file else 'None'}")
     logger.info(f"  Build ID: {args.build_id}")

@@ -1,24 +1,46 @@
-- name: Gathering cloudformation info
-  cloudformation_info:
-    stack_name: '{{ params["EnvironmentNameUpper"] }}-{{item.type}}-{{ item.name }}-stack'
-    region: '{{ item.region | default(params["Region"]) }}'
+- name: Set stack name variables
+  set_fact:
+    _stack_name_primary: '{{ params["EnvironmentNameUpper"] }}-{{ item.type }}-{{ item.name }}-stack'
+    _stack_name_fallback: '{{ params["EnvironmentNameUpper"] }}-{{ item.type }}-alpha-{{ item.name }}-stack'
+    _region: '{{ item.region | default(params["Region"]) }}'
+
+- name: Check if primary stack exists
+  shell: >
+    aws cloudformation describe-stacks
+    --stack-name "{{ _stack_name_primary }}"
+    --region "{{ _region }}"
+    --query "Stacks[0].Outputs"
+    --output json
   environment: '{{ params }}'
-  register: cloudformation_facts
+  register: primary_stack_result
+  ignore_errors: true
+
+- name: Check if fallback stack exists
+  shell: >
+    aws cloudformation describe-stacks
+    --stack-name "{{ _stack_name_fallback }}"
+    --region "{{ _region }}"
+    --query "Stacks[0].Outputs"
+    --output json
+  environment: '{{ params }}'
+  register: fallback_stack_result
+  ignore_errors: true
+  when: primary_stack_result.rc != 0
+
+- name: Set effective stack result
+  set_fact:
+    _effective_stack_name: '{{ _stack_name_primary if primary_stack_result.rc == 0 else _stack_name_fallback }}'
+    _stack_outputs_raw: '{{ (primary_stack_result.stdout_lines | last | from_json) if primary_stack_result.rc == 0 else ((fallback_stack_result.stdout_lines | last | from_json) if fallback_stack_result.rc | default(1) == 0 else []) }}'
 
 - debug:
-    msg: 'Resolving {{ item.type }}:{{ item.name }}'
+    msg: 'Resolving {{ item.type }}:{{ item.name }} using stack: {{ _effective_stack_name }}'
+
+- name: Build flat outputs dict from Outputs array
+  set_fact:
+    matched_stack_output: '{{ _stack_outputs_raw | default([]) | items2dict(key_name="OutputKey", value_name="OutputValue") }}'
 
 - debug:
-    msg: 'cloudformation_facts: {{ cloudformation_facts }}'
+    msg: 'Stack outputs: {{ matched_stack_output }}'
 
-# - debug:
-#     msg: "Print facts: {{ cloudformation_facts['cloudformation']['stack_name'] }}"
-
-- debug:
-    msg: 'Print facts: {{ cloudformation_facts["cloudformation"] }}'
-
-- set_fact: 
-    matched_stack_output: '{{ cloudformation_facts["cloudformation"][params["EnvironmentNameUpper"] + "-" + item.type + "-" + item.name + "-stack"]["stack_outputs"] | default({}) }}'
-    
 - set_fact:
-    params: '{{ params | combine( matched_stack_output ) }}'
+    params: '{{ params | combine(matched_stack_output) }}'
