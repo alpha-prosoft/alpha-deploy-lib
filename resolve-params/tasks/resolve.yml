@@ -1,59 +1,41 @@
-- name: Set stack name variables
-  set_fact:
-    _stack_name_primary: '{{ params["EnvironmentNameUpper"] }}-{{ item.type }}-{{ item.name }}-stack'
-    _stack_name_fallback: '{{ params["EnvironmentNameUpper"] }}-{{ item.type }}-alpha-{{ item.name }}-stack'
-    _region: '{{ item.region | default(params["Region"]) }}'
+- name: Resolve stack outputs
+  shell: |
+    import json, boto3
+    from botocore.exceptions import ClientError
 
-- name: Check if primary stack exists
-  shell: >
-    aws cloudformation describe-stacks
-    --stack-name "{{ _stack_name_primary }}"
-    --region "{{ _region }}"
-    --query "Stacks[0].Outputs"
-    --output json
+    STACKS = [
+        "{{ params['EnvironmentNameUpper'] }}-{{ item.type }}-{{ item.name }}-stack",
+        "{{ params['EnvironmentNameUpper'] }}-{{ item.type }}-alpha-{{ item.name }}-stack",
+    ]
+    REGION = "{{ item.region | default(params['Region']) }}"
+
+    cf = boto3.client("cloudformation", region_name=REGION)
+
+    def get_outputs(name):
+        try:
+            stack = cf.describe_stacks(StackName=name)["Stacks"][0]
+            return {o["OutputKey"]: o["OutputValue"] for o in stack.get("Outputs", [])}
+        except ClientError:
+            return None
+
+    for stack_name in STACKS:
+        outputs = get_outputs(stack_name)
+        if outputs is not None:
+            break
+    else:
+        stack_name = STACKS[-1]
+        outputs = {}
+
+    print(json.dumps({"used_stack": stack_name, "outputs": outputs}))
+  args:
+    executable: /usr/bin/python3
   environment: '{{ params }}'
-  register: primary_stack_result
-  ignore_errors: true
+  register: _stack_script
 
-- name: Check if fallback stack exists
-  shell: >
-    aws cloudformation describe-stacks
-    --stack-name "{{ _stack_name_fallback }}"
-    --region "{{ _region }}"
-    --query "Stacks[0].Outputs"
-    --output json
-  environment: '{{ params }}'
-  register: fallback_stack_result
-  ignore_errors: true
-  when: primary_stack_result.rc != 0
-
-- name: Set effective stack result (primary)
+- name: Set resolved stack outputs
   set_fact:
-    _effective_stack_name: '{{ _stack_name_primary }}'
-    _stack_outputs_raw: '{{ primary_stack_result.stdout_lines | last | from_json }}'
-  when: primary_stack_result.rc == 0
-
-- name: Set effective stack result (fallback)
-  set_fact:
-    _effective_stack_name: '{{ _stack_name_fallback }}'
-    _stack_outputs_raw: '{{ fallback_stack_result.stdout_lines | last | from_json }}'
-  when: primary_stack_result.rc != 0 and fallback_stack_result.rc | default(1) == 0
-
-- name: Set effective stack result (none found)
-  set_fact:
-    _effective_stack_name: '{{ _stack_name_fallback }}'
-    _stack_outputs_raw: []
-  when: primary_stack_result.rc != 0 and fallback_stack_result.rc | default(1) != 0
+    _stack_result: '{{ _stack_script.stdout | from_json }}'
+    params: '{{ params | combine((_stack_script.stdout | from_json).outputs) }}'
 
 - debug:
-    msg: 'Resolving {{ item.type }}:{{ item.name }} using stack: {{ _effective_stack_name }}'
-
-- name: Build flat outputs dict from Outputs array
-  set_fact:
-    matched_stack_output: '{{ _stack_outputs_raw | default([]) | items2dict(key_name="OutputKey", value_name="OutputValue") }}'
-
-- debug:
-    msg: 'Stack outputs: {{ matched_stack_output }}'
-
-- set_fact:
-    params: '{{ params | combine(matched_stack_output) }}'
+    msg: 'Resolved {{ item.type }}:{{ item.name }} from stack {{ _stack_result.used_stack }} — {{ _stack_result.outputs | length }} outputs'
