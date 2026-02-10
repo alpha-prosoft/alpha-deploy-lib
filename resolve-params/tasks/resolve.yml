@@ -27,10 +27,23 @@
   ignore_errors: true
   when: primary_stack_result.rc != 0
 
-- name: Set effective stack result
+- name: Set effective stack result (primary)
   set_fact:
-    _effective_stack_name: '{{ _stack_name_primary if primary_stack_result.rc == 0 else _stack_name_fallback }}'
-    _stack_outputs_raw: '{{ (primary_stack_result.stdout_lines | last | from_json) if primary_stack_result.rc == 0 else ((fallback_stack_result.stdout_lines | last | from_json) if fallback_stack_result.rc | default(1) == 0 else []) }}'
+    _effective_stack_name: '{{ _stack_name_primary }}'
+    _stack_outputs_raw: '{{ primary_stack_result.stdout_lines | last | from_json }}'
+  when: primary_stack_result.rc == 0
+
+- name: Set effective stack result (fallback)
+  set_fact:
+    _effective_stack_name: '{{ _stack_name_fallback }}'
+    _stack_outputs_raw: '{{ fallback_stack_result.stdout_lines | last | from_json }}'
+  when: primary_stack_result.rc != 0 and fallback_stack_result.rc | default(1) == 0
+
+- name: Set effective stack result (none found)
+  set_fact:
+    _effective_stack_name: '{{ _stack_name_fallback }}'
+    _stack_outputs_raw: []
+  when: primary_stack_result.rc != 0 and fallback_stack_result.rc | default(1) != 0
 
 - debug:
     msg: 'Resolving {{ item.type }}:{{ item.name }} using stack: {{ _effective_stack_name }}'
