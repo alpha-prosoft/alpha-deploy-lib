@@ -85,6 +85,9 @@
       infra:
         router:
           queue: "router-svc-response"
+        storage:
+          aggregates:
+            bucket: "aggregate-store"
       svc:
         username: "{{ function_name }}@{{ params['PublicHostedZoneName'] }}"
         password: "{{ lookup('aws_secret',
