@@ -63,6 +63,9 @@ Parameters:
   CertificateArn:
     Type: String
 
+  CQRSApiId:
+    Type: String
+    Description: "API Gateway REST API ID used to scope Lambda invoke permissions"
 
   SubscribeDb:
     Type: String
@@ -265,6 +268,7 @@ Resources:
       FunctionName: !GetAtt LambdaFunction.Arn
       Action: 'lambda:InvokeFunction'
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${Region}:${AWS::AccountId}:${CQRSApiId}/*"
     DependsOn:
       - LambdaFunction
 
@@ -276,6 +280,7 @@ Resources:
       FunctionName: !GetAtt LambdaAlias.AliasArn
       Action: 'lambda:InvokeFunction'
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${Region}:${AWS::AccountId}:${CQRSApiId}/*"
 
   TestCommandsQueue1:
     Type: AWS::SQS::Queue
