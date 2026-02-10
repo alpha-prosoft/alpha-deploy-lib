@@ -82,6 +82,9 @@
     default_secrets:
       db:
         name: '{{ settings["DatabaseName"] | default(params["DatabaseName"]) }}'
+      infra:
+        router:
+          queue: "router-svc-response"
       svc:
         username: "{{ function_name }}@{{ params['PublicHostedZoneName'] }}"
         password: "{{ lookup('aws_secret',
