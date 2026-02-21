@@ -8,8 +8,8 @@
       name: 'base'
 
 
-- name: "Create machine user"
-  environment: '{{ params}}'
+- name: "Create machine user (idempotent)"
+  environment: '{{ params }}'
   when: no_secret is not defined
   args:
     executable: "/bin/bash"
@@ -17,88 +17,141 @@
     set -euo pipefail
 
     export username="{{ username }}@{{ params['PublicHostedZoneName'] }}"
+    export userpool_id="{{ params['AuthUserPoolId'] }}"
+    export client_id="{{ params['AuthUserPoolClientId'] }}"
+    export environment_name_lower="{{ params['EnvironmentNameLower'] }}"
+    export sm_secret_id="/${environment_name_lower}/${username}/password"
+    export param_name="/${environment_name_lower}/${username//[@.]/_}/password"
+    export name="{{ username }}"
 
-    echo "User: ${username}";
-    export userpool_id="{{ params["AuthUserPoolId"] }}"
-    export client_id="{{ params["AuthUserPoolClientId"] }}"
+    echo "User: ${username}"
 
-    export tmp_password="?!?71{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
-    export new_password="?=!44{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters')  }}-;"
-    export environment_name_lower="{{ params["EnvironmentNameLower"] }}"
-    export secret_id="/${environment_name_lower}/${username}/password"
-
-    user=$(aws cognito-idp admin-get-user \
+    {% raw %}
+    # --- Check if user already exists in Cognito ---
+    user_status="NONE"
+    if aws cognito-idp admin-get-user \
             --user-pool-id "${userpool_id}" \
-            --username "${username}" 2>/dev/null || echo "False")
+            --username "${username}" > /dev/null 2>&1; then
+      user_exists="true"
+      user_status=$(aws cognito-idp admin-get-user \
+                      --user-pool-id "${userpool_id}" \
+                      --username "${username}" \
+                      --query "UserStatus" --output text)
+      echo "Cognito user exists: yes (status: ${user_status})"
+    else
+      user_exists="false"
+      echo "Cognito user exists: no"
+    fi
 
+    # --- Migrate from Secrets Manager to Parameter Store if needed ---
+    if sm_value=$(aws secretsmanager get-secret-value \
+                    --query "SecretString" --output text \
+                    --secret-id "${sm_secret_id}" 2>/dev/null); then
+      echo "Found secret in Secrets Manager - migrating to Parameter Store"
+      aws ssm put-parameter \
+        --name "${param_name}" \
+        --type "SecureString" \
+        --value "${sm_value}" \
+        --overwrite
+      echo "Stored in Parameter Store: ${param_name}"
+      aws secretsmanager delete-secret \
+        --secret-id "${sm_secret_id}" \
+        --force-delete-without-recovery
+      echo "Deleted from Secrets Manager: ${sm_secret_id}"
+    fi
+
+    # --- Check if password exists in Parameter Store ---
+    if secret_value=$(aws ssm get-parameter \
+                        --name "${param_name}" \
+                        --with-decryption \
+                        --query "Parameter.Value" --output text 2>/dev/null); then
+      secret_exists="true"
+      echo "Parameter Store secret exists: yes"
+    else
+      secret_exists="false"
+      secret_value=""
+      echo "Parameter Store secret exists: no"
+    fi
+
+    # --- Compute secret hash (needed for auth operations) ---
     client_secret=$(aws cognito-idp describe-user-pool-client \
-                          --user-pool-id "{{ params['AuthUserPoolId'] }}" \
-                          --client-id "{{ params['AuthUserPoolClientId'] }}" \
+                          --user-pool-id "${userpool_id}" \
+                          --client-id "${client_id}" \
                           --query "UserPoolClient.ClientSecret" --output text)
     export secret_hash=$(echo -n "${username}${client_id}" \
                           | openssl dgst -sha256 -hmac "${client_secret}" -binary | base64)
+    {% endraw %}
 
-    echo "Cognito user: ${user}"
+    if [[ "${user_exists}" == "false" || "${user_status}" == "FORCE_CHANGE_PASSWORD" ]]; then
+      export new_password="?=!44{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters') }}-;"
 
-    if [[ "${user}" == "False" ]]; then
-      echo "User ${username} is missing, so creating it";
-      aws cognito-idp admin-create-user \
+      {% raw %}
+      if [[ "${user_exists}" == "false" ]]; then
+        echo "User ${username} is missing, creating it"
+
+        aws cognito-idp admin-create-user \
+          --user-pool-id "${userpool_id}" \
+          --user-attributes "Name=email,Value=${username}" "Name=email_verified,Value=True" \
+          --username "${username}"
+      else
+        echo "User ${username} exists but is in FORCE_CHANGE_PASSWORD state - activating it"
+      fi
+
+      # Set permanent password directly (skips the challenge flow, fully idempotent)
+      aws cognito-idp admin-set-user-password \
         --user-pool-id "${userpool_id}" \
-        --user-attributes "Name=email,Value=${username}" "Name=email_verified,Value=True" \
-        --username "${username}"
+        --username "${username}" \
+        --password "${new_password}" \
+        --permanent
+
+      echo "User activated with permanent password"
+
+      # Store password in Parameter Store (create or update)
+      echo "Storing password in Parameter Store: ${param_name}"
+      aws ssm put-parameter \
+        --name "${param_name}" \
+        --type "SecureString" \
+        --value "${new_password}" \
+        --overwrite
+      {% endraw %}
+
+    elif [[ "${secret_exists}" == "false" ]]; then
+      export new_password="?=!44{{ lookup('password', '/dev/null length=32 chars=digits,ascii_letters') }}-;"
+
+      {% raw %}
+      echo "User ${username} exists (status: ${user_status}) but secret is missing - resetting password"
 
       aws cognito-idp admin-set-user-password \
         --user-pool-id "${userpool_id}" \
         --username "${username}" \
-        --password "${tmp_password}"
+        --password "${new_password}" \
+        --permanent
 
-      session=$(aws cognito-idp admin-initiate-auth \
-                   --user-pool-id "${userpool_id}" \
-                   --client-id "${client_id}" \
-                   --auth-flow ADMIN_NO_SRP_AUTH \
-                   --auth-parameters "USERNAME=${username},PASSWORD=${tmp_password},SECRET_HASH=${secret_hash}" \
-                   --output text --query 'Session')                                                                                         
+      echo "Storing password in Parameter Store: ${param_name}"
+      aws ssm put-parameter \
+        --name "${param_name}" \
+        --type "SecureString" \
+        --value "${new_password}" \
+        --overwrite
+      {% endraw %}
 
-      echo "Session: $session"
-      aws cognito-idp  admin-respond-to-auth-challenge \
-        --user-pool-id "${userpool_id}" \
-        --client-id "${client_id}" \
-        --challenge-name NEW_PASSWORD_REQUIRED \
-        --challenge-responses "USERNAME=${username},NEW_PASSWORD=${new_password},userAttributes.name={{ username }},SECRET_HASH=${secret_hash}" \
-        --session "${session}"
-
-
-      secret_value="$(aws secretsmanager get-secret-value \
-    	             --secret-id "${secret_id}" &> /dev/null || echo "False")"
-
-      if [[ "${secret_value}" == "False" ]]; then
-        echo "Secret ${secret_id} does not exist, creating it"
-        aws secretsmanager create-secret \
-          --name "${secret_id}" \
-          --secret-string ${new_password}
-      else
-        echo "Secret ${secret_id} exist, updating it"
-        aws secretsmanager put-secret-value \
-                  --secret-id  "${secret_id}" \
-                  --secret-string ${new_password}
-      fi
     else
-      echo "Login existing user"
-      export secret_value="$(aws secretsmanager get-secret-value \
-                              --query "SecretString" --output text \
-        	                  --secret-id "${secret_id}")"
+      {% raw %}
+      echo "User ${username} already exists (status: ${user_status}) and secret is present - verifying login"
 
-      export name="{{ username }}"
       aws cognito-idp admin-update-user-attributes \
-            --user-pool-id ${userpool_id} \
-            --username ${username} \
+            --user-pool-id "${userpool_id}" \
+            --username "${username}" \
             --user-attributes Name="name",Value="${name^}"
-            
+
       auth=$(aws cognito-idp admin-initiate-auth \
              --user-pool-id "${userpool_id}" \
              --client-id "${client_id}" \
              --auth-flow ADMIN_NO_SRP_AUTH \
              --auth-parameters "USERNAME=${username},PASSWORD=${secret_value},SECRET_HASH=${secret_hash}")
+
+      echo "Login successful - no changes needed"
+      {% endraw %}
     fi
 
 - name: 'Add user to groups'
@@ -108,7 +161,7 @@
   shell: |
     set -e
     aws cognito-idp admin-add-user-to-group \
-           --user-pool-id {{ params["AuthUserPoolId"] }} \
+           --user-pool-id {{ params['AuthUserPoolId'] }} \
     	   --username "{{ username }}@{{ params['PublicHostedZoneName'] }}" \
     	   --group-name {{ item }}
   loop: '{{ cognito_groups | default([], true) }}'

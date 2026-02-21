@@ -1,49 +1,242 @@
+- name: "Create application via API Gateway"
+  environment: '{{ params }}'
+  args:
+    executable: "/usr/bin/python3"
+  shell: |
+    import json
+    import uuid
+    import sys
+    import urllib.request
+    import urllib.error
+    import hmac
+    import hashlib
+    import base64
+    import subprocess
+    import os
+
+    # ── Configuration ──────────────────────────────────────────────────────
+    domain           = os.environ["PublicHostedZoneName"]
+    env_lower        = os.environ["EnvironmentNameLower"]
+    userpool_id      = os.environ["AuthUserPoolId"]
+    client_id        = os.environ["AuthUserPoolClientId"]
+
+    username         = f"automation@{domain}"
+    username_safe    = username.replace("@", "_").replace(".", "_")
+    secret_id        = f"/{env_lower}/{username_safe}/password"
+
+    base_url         = f"https://api.{domain}/private/prod/user-svc"
+    cmd_url          = f"{base_url}/command"
+    query_url        = f"{base_url}/query"
+
+    app_name  = {{ attrs["name"] | to_json }}
+    app_type  = {{ attrs["type"] | to_json }}
+    app_title = {{ attrs["title"] | to_json }}
+    admins    = {{ admins | default([], true) | to_json }}
+
+    cmd_attrs = {"name": app_name, "type": app_type, "title": app_title}
+
+    def log(msg):
+        print(f"[create-application] {msg}", flush=True)
+
+    def debug(label, data):
+        print(f"[DEBUG] {label}: {json.dumps(data, indent=2, default=str)}", flush=True)
+
+    # ── AWS CLI helper ─────────────────────────────────────────────────────
+    def aws(*args):
+        result = subprocess.run(
+            ["aws"] + list(args),
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"aws {' '.join(args)} failed: {result.stderr.strip()}")
+        return result.stdout.strip()
+
+    # ── Cognito auth ───────────────────────────────────────────────────────
+    def get_cognito_token():
+        log(f"Retrieving password from SSM: {secret_id}")
+        password = aws(
+            "ssm", "get-parameter",
+            "--name", secret_id,
+            "--with-decryption",
+            "--query", "Parameter.Value",
+            "--output", "text"
+        )
+        log("Password retrieved from SSM Parameter Store")
+
+        log("Fetching Cognito client secret")
+        client_secret = aws(
+            "cognito-idp", "describe-user-pool-client",
+            "--user-pool-id", userpool_id,
+            "--client-id", client_id,
+            "--query", "UserPoolClient.ClientSecret",
+            "--output", "text"
+        )
+
+        secret_hash = base64.b64encode(
+            hmac.new(
+                client_secret.encode("utf-8"),
+                (username + client_id).encode("utf-8"),
+                hashlib.sha256
+            ).digest()
+        ).decode("utf-8")
+
+        log(f"Authenticating as {username}")
+        auth_result_raw = aws(
+            "cognito-idp", "admin-initiate-auth",
+            "--user-pool-id", userpool_id,
+            "--client-id", client_id,
+            "--auth-flow", "ADMIN_NO_SRP_AUTH",
+            "--auth-parameters",
+            f"USERNAME={username},PASSWORD={password},SECRET_HASH={secret_hash}"
+        )
+        auth_result = json.loads(auth_result_raw)
+        token = auth_result["AuthenticationResult"]["IdToken"]
+        log("Cognito authentication successful")
+        log(f"Token (first 20 chars): {token[:20]}...")
+        return token
+
+    # ── HTTP helpers ───────────────────────────────────────────────────────
+    def api_post(url, payload, token):
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("x-authorization", token)
+
+        debug("REQUEST URL", url)
+        debug("REQUEST PAYLOAD", payload)
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                debug("RESPONSE", body)
+                return body
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            log(f"HTTP {e.code} error: {error_body}")
+            raise
+
+    def send_command(token, body):
+        interaction_id = f"#{uuid.uuid4()}"
+        request_id     = f"#{uuid.uuid4()}"
+        payload = {
+            "interaction-id": interaction_id,
+            "request-id": request_id,
+            "commands": [body],
+            "meta": {"realm": "prod"}
+        }
+        log(f"Sending command: {body.get('cmd-id', 'unknown')}")
+        result = api_post(cmd_url, payload, token)
+        if not result.get("result", {}).get("success"):
+            log(f"Command failed: {json.dumps(result, default=str)}")
+            sys.exit(1)
+        log(f"Command {body.get('cmd-id', 'unknown')} succeeded")
+        return result
+
+    def send_query(token, body):
+        interaction_id = f"#{uuid.uuid4()}"
+        request_id     = f"#{uuid.uuid4()}"
+        payload = {
+            "interaction-id": interaction_id,
+            "request-id": request_id,
+            "query": body,
+            "meta": {"realm": "prod"}
+        }
+        log(f"Sending query: {body.get('query-id', 'unknown')}")
+        result = api_post(query_url, payload, token)
+        if "result" not in result:
+            log(f"Query error - no 'result' in response: {json.dumps(result, default=str)}")
+            sys.exit(1)
+        debug("QUERY RESULT", result)
+        return result
+
+    def create_missing(token, query_body, cmd_body):
+        """Query for an existing object; create it if not found."""
+        aggregate_id = f"#{uuid.uuid4()}"
+        log(f"Checking if object exists: {query_body.get('query-id', 'unknown')}")
+
+        response = send_query(token, query_body)
+        existing = response.get("result")
+
+        if existing is not None and isinstance(existing, dict) and "id" in existing:
+            aggregate_id = existing["id"]
+            log(f"Object already exists with id: {aggregate_id}")
+        else:
+            log(f"Object not found, creating with id: {aggregate_id}")
+            cmd_body_with_id = {**cmd_body, "id": aggregate_id}
+            send_command(token, cmd_body_with_id)
+            log(f"Object created with id: {aggregate_id}")
+
+        return aggregate_id
+
+    # ── Main ───────────────────────────────────────────────────────────────
+    def main():
+        log("=" * 60)
+        log("Starting create-application")
+        log(f"  Application name:  {app_name}")
+        log(f"  Application type:  {app_type}")
+        log(f"  Application title: {app_title}")
+        log(f"  Admins:            {admins}")
+        log(f"  API base URL:      {base_url}")
+        log("=" * 60)
+
+        # Step 1: Authenticate
+        token = get_cognito_token()
+
+        # Step 2: Create application if missing
+        log("--- Step 1: Create application if missing ---")
+        application_id = create_missing(
+            token,
+            query_body={"query-id": ":get-by-name", "name": app_name},
+            cmd_body={"cmd-id": ":create-application", "attrs": cmd_attrs}
+        )
+        log(f"Application ID: {application_id}")
+
+        # Step 3: Update application
+        log("--- Step 2: Update application ---")
+        send_command(token, {
+            "id": application_id,
+            "cmd-id": ":update-application",
+            "attrs": cmd_attrs
+        })
+
+        # Step 4: Create missing admin users
+        if admins:
+            for admin_email in admins:
+                log(f"--- Step 3: Create user if missing: {admin_email} ---")
+                create_missing(
+                    token,
+                    query_body={"query-id": ":get-by-email", "email": admin_email},
+                    cmd_body={"cmd-id": ":create-user", "attrs": {"email": admin_email}}
+                )
+
+            # Step 5: Add admins to application
+            log("--- Step 4: Add admins to application ---")
+            send_command(token, {
+                "id": application_id,
+                "cmd-id": ":add-admins",
+                "attrs": {"email": admins}
+            })
+        else:
+            log("No admins specified, skipping admin steps")
+
+        # Output application_id for Ansible to capture
+        log("=" * 60)
+        log(f"APPLICATION_ID={application_id}")
+        log("create-application completed successfully")
+        log("=" * 60)
+
+        # Print a JSON line that Ansible can parse
+        print(json.dumps({"application_id": application_id}))
+
+    if __name__ == "__main__":
+        main()
+  register: create_app_result
+
 - set_fact:
-    cmd_attrs:
-      name: '{{ attrs["name"] }}'
-      type: '{{ attrs["type"] }}'
-      title: '{{ attrs["title"] }}'
+    application_id: '{{ (create_app_result.stdout_lines | last) | from_json | json_query("application_id") }}'
 
-- include_tasks: create_missing.yml
-  vars: 
-    query_body: 
-      query-id: ":get-by-name" 
-      name: '{{ attrs["name"] }}'
-    cmd_body: 
-      cmd-id: ":create-application" 
-      attrs: '{{ cmd_attrs }}'
-
-- set_fact: 
-    application_id: '{{ aggregate_id }}'
-
-- include_tasks: cmd.yml
-  vars:
-    body:
-      id: '{{ application_id }}'
-      cmd-id: ":update-application"
-      attrs: '{{ cmd_attrs }}'
-
-- include_tasks: create_missing.yml
-  vars:
-    query_body: 
-      query-id: ":get-by-email" 
-      email: '{{ item }}' 
-    cmd_body: 
-      cmd-id: ":create-user" 
-      attrs: 
-        email: '{{ item }}' 
-  loop: '{{ admins }}'
-  when: admins
-
-- include_tasks: cmd.yml
-  vars:
-    body: 
-      id: '{{ application_id }}'
-      cmd-id: ":add-admins" 
-      attrs: 
-        email: '{{ admins }}' 
-  when: admins
-
+- debug:
+    msg: "Application ID: {{ application_id }}"
 
 - set_fact:
     params: '{{ params | combine( {"ApplicationId" : application_id} ) }}'

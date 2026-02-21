@@ -346,6 +346,45 @@ Resources:
       SourceArn: !GetAtt ProdEventsQueue1.Arn
       FunctionName: !Ref LambdaFunction
 
+  TestCommandsQueue1LambdaInvokePermissionAlias:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt TestCommandsQueue1.Arn
+      FunctionName: !GetAtt LambdaAlias.AliasArn
+
+  ProdCommandsQueue1LambdaInvokePermissionAlias:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt ProdCommandsQueue1.Arn
+      FunctionName: !GetAtt LambdaAlias.AliasArn
+
+  TestEventsQueue1LambdaInvokePermissionAlias:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt TestEventsQueue1.Arn
+      FunctionName: !GetAtt LambdaAlias.AliasArn
+
+  ProdEventsQueue1LambdaInvokePermissionAlias:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt ProdEventsQueue1.Arn
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
   QueueSendPermissions:
     Type: AWS::SQS::QueuePolicy
@@ -376,35 +415,43 @@ Resources:
 
   TestCommandsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - LambdaAlias
     Properties:
       Enabled: true
       BatchSize: 1
       EventSourceArn: !GetAtt TestCommandsQueue1.Arn
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
   ProdCommandsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - LambdaAlias
     Properties:
       Enabled: true
       BatchSize: 1
       EventSourceArn: !GetAtt ProdCommandsQueue1.Arn
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
   TestEventsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - LambdaAlias
     Properties:
       Enabled: true
       BatchSize: 1
       EventSourceArn: !GetAtt TestEventsQueue1.Arn
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
   ProdEventsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
+    DependsOn:
+      - LambdaAlias
     Properties:
       Enabled: true
       BatchSize: 1
       EventSourceArn: !GetAtt ProdEventsQueue1.Arn
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
 
 
@@ -499,14 +546,27 @@ Resources:
       SourceArn: !GetAtt S3Queue.Arn
       FunctionName: !Ref LambdaFunction
 
+  S3QueueLambdaInvokePermissionAlias:
+    Type: AWS::Lambda::Permission
+    Condition: IsEnableImport
+    DependsOn:
+      - LambdaAlias
+    Properties:
+      Action: lambda:InvokeFunction
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt S3Queue.Arn
+      FunctionName: !GetAtt LambdaAlias.AliasArn
+
   S3QueueSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Condition: IsEnableImport
+    DependsOn:
+      - LambdaAlias
     Properties:
       Enabled: true
       BatchSize: 1
       EventSourceArn: !GetAtt S3Queue.Arn
-      FunctionName: !Ref LambdaFunction
+      FunctionName: !GetAtt LambdaAlias.AliasArn
 
   S3QueuePermissions:
     Type: AWS::SQS::QueuePolicy
