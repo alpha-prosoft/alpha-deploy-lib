@@ -90,13 +90,11 @@
             bucket: "aggregate-store"
       svc:
         username: "{{ function_name }}@{{ params['PublicHostedZoneName'] }}"
-        password: "{{ lookup('aws_secret',
+        password: "{{ lookup('aws_ssm',
                                 '/' +
                                 params['EnvironmentNameLower'] +
                                 '/' +
-                                function_name +
-                                '@' +
-                                params['PublicHostedZoneName'] +
+                                (function_name + '@' + params['PublicHostedZoneName']) | regex_replace('[@.]', '_') +
                                 '/password') }}"
       auth:
         client-id: "{{ params['AuthUserPoolClientId'] }}"
