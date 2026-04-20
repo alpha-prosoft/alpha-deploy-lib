@@ -34,6 +34,48 @@
     params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
   when: '"AliasDomainName" in params'
 
+- name: 'Verify GlobalCertificateArn covers WildcardSubdomainName'
+  when: '"WildcardSubdomainName" in params and params["WildcardSubdomainName"] | length > 0'
+  shell: |
+    import json, sys, boto3
+    from botocore.exceptions import ClientError
+
+    REGION = "us-east-1"
+    CERT_ARN = "{{ params['GlobalCertificateArn'] }}"
+    REQUIRED = "*.{{ params['WildcardSubdomainName'] }}.{{ params['PublicHostedZoneName'] }}"
+
+    acm = boto3.client("acm", region_name=REGION)
+    try:
+        cert = acm.describe_certificate(CertificateArn=CERT_ARN)["Certificate"]
+    except ClientError as e:
+        print(json.dumps({"ok": False, "error": "describe_certificate failed: %s" % e}))
+        sys.exit(0)
+
+    sans = set(cert.get("SubjectAlternativeNames", []))
+    if cert.get("DomainName"):
+        sans.add(cert["DomainName"])
+
+    print(json.dumps({
+        "ok": REQUIRED in sans,
+        "required": REQUIRED,
+        "sans": sorted(sans),
+    }))
+  args:
+    executable: /usr/bin/python3
+  register: _wildcard_cert_check
+
+- name: 'Fail if GlobalCertificateArn does not cover the wildcard subdomain'
+  when: '"WildcardSubdomainName" in params and params["WildcardSubdomainName"] | length > 0'
+  vars:
+    _check: '{{ _wildcard_cert_check.stdout | from_json }}'
+  fail:
+    msg: |
+      GlobalCertificateArn does not cover required SAN '{{ _check.required }}'.
+      Add it to the global/base certificate before deploying with WildcardSubdomainName.
+      Current SANs: {{ _check.sans | default([]) }}
+      {{ ('Error: ' + _check.error) if _check.error is defined else '' }}
+  failed_when: not (_check.ok | default(false))
+
 - include_role: 
     name: alpha-deploy-lib/deploy-cloudformation
   vars:
