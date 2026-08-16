@@ -85,9 +85,15 @@
 - set_fact:
     params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
 
+- name: 'Read commit id baked into the build image'
+  shell: 'cat /dist/commit-id 2>/dev/null || echo unknown'
+  register: commit_id_result
+
 - set_fact:
     web_config:
       BuildId: '{{ params["BuildId"] }}'
+      CommitId: '{{ commit_id_result.stdout | trim }}'
+      DeployTime: '{{ lookup("pipe", "date -u +%Y-%m-%dT%H:%M:%SZ") }}'
       ResourceName: '{{ params["ResourceName"] }}'
       EnvironmentNameLower: '{{ params["EnvironmentNameLower"] }}'
       EnvironmentNameUpper: '{{ params["EnvironmentNameUpper"] }}'
@@ -111,6 +117,11 @@
   template:
     src: /dist/index.j2.html
     dest: '/dist/{{ params["EnvironmentNameLower"] }}/s3/index.html'
+
+- name: 'Write config.json for client version polling'
+  copy:
+    content: '{{ web_config | to_json }}'
+    dest: '/dist/{{ params["EnvironmentNameLower"] }}/s3/config.json'
 
 - name: 'Copy s3 content to bucket'
   environment: '{{ params }}'
