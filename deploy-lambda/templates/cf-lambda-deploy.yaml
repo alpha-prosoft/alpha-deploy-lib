@@ -76,6 +76,11 @@ Parameters:
     Type: String
     Default: "310"
 
+  QueueMaxReceiveCount:
+    Type: Number
+    Default: 5
+    Description: "Deliveries of a command/event before it is moved to the queue's dead-letter queue, so one failing message cannot block its FIFO message group forever"
+
   AuthUserPoolId:
     Type: String
 
@@ -280,6 +285,13 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${Region}:${AWS::AccountId}:${CQRSApiId}/*"
 
+  TestCommandsDeadLetterQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ResourceName}-commands-1-dlq.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+
   TestCommandsQueue1:
     Type: AWS::SQS::Queue
     Properties:
@@ -287,6 +299,16 @@ Resources:
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TestCommandsDeadLetterQueue1.Arn
+        maxReceiveCount: !Ref QueueMaxReceiveCount
+
+  ProdCommandsDeadLetterQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ResourceName}-commands-1-dlq.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
 
   ProdCommandsQueue1:
     Type: AWS::SQS::Queue
@@ -295,6 +317,16 @@ Resources:
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProdCommandsDeadLetterQueue1.Arn
+        maxReceiveCount: !Ref QueueMaxReceiveCount
+
+  TestEventsDeadLetterQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-test-${ResourceName}-events-1-dlq.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
 
   TestEventsQueue1:
     Type: AWS::SQS::Queue
@@ -303,6 +335,16 @@ Resources:
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TestEventsDeadLetterQueue1.Arn
+        maxReceiveCount: !Ref QueueMaxReceiveCount
+
+  ProdEventsDeadLetterQueue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentNameLower}-prod-${ResourceName}-events-1-dlq.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
 
   ProdEventsQueue1:
     Type: AWS::SQS::Queue
@@ -311,6 +353,9 @@ Resources:
       FifoQueue: true
       DelaySeconds: 0
       VisibilityTimeout: !Ref QueueTimeout
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProdEventsDeadLetterQueue1.Arn
+        maxReceiveCount: !Ref QueueMaxReceiveCount
 
 
 
@@ -412,6 +457,10 @@ Resources:
         - !Ref ProdCommandsQueue1
         - !Ref TestEventsQueue1
         - !Ref ProdEventsQueue1
+        - !Ref TestCommandsDeadLetterQueue1
+        - !Ref ProdCommandsDeadLetterQueue1
+        - !Ref TestEventsDeadLetterQueue1
+        - !Ref ProdEventsDeadLetterQueue1
 
   TestCommandsSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
