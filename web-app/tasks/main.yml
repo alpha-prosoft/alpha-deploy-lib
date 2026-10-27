@@ -123,22 +123,45 @@
     content: '{{ web_config | to_json }}'
     dest: '/dist/{{ params["EnvironmentNameLower"] }}/s3/config.json'
 
-- name: 'Copy s3 content to bucket'
+- name: 'Gzip text assets and copy s3 content to bucket'
   environment: '{{ params }}'
-  s3_sync:
-    region: '{{ params["Region"] }}'
-    bucket: '{{ params["S3BucketName"] }}'
-    file_root: '/dist/{{ params["EnvironmentNameLower"] }}/s3'
-    file_change_strategy: force
-    delete: true
-    mime_map:
-      .js: application/javascript
-      .json: application/json
-      .css: text/css
-      .html: text/html
-      .svg: image/svg+xml
-      .svgz: image/svg+xml
-      .ico: image/x-icon
+  shell: |
+    set -euo pipefail
+    root='/dist/{{ params["EnvironmentNameLower"] }}/s3'
+    bucket='s3://{{ params["S3BucketName"] }}'
+    region='{{ params["Region"] }}'
+
+    text_types=(
+      'js:application/javascript'
+      'css:text/css'
+      'html:text/html'
+      'json:application/json'
+      'map:application/json'
+      'svg:image/svg+xml'
+      'txt:text/plain'
+      'webmanifest:application/manifest+json'
+    )
+
+    binary_args=()
+    for entry in "${text_types[@]}"; do
+      ext="${entry%%:*}"
+      binary_args+=(--exclude "*.${ext}")
+      find "$root" -type f -name "*.${ext}" \
+        -exec sh -c 'gzip -9 -n -c "$1" > "$1.gz" && mv "$1.gz" "$1"' _ {} \;
+    done
+
+    aws s3 sync "$root" "$bucket" --region "$region" --delete \
+      "${binary_args[@]}"
+
+    for entry in "${text_types[@]}"; do
+      ext="${entry%%:*}"
+      type="${entry#*:}"
+      aws s3 sync "$root" "$bucket" --region "$region" --delete \
+        --exclude '*' --include "*.${ext}" \
+        --content-type "$type" --content-encoding gzip
+    done
+  args:
+    executable: /bin/bash
 
 - name: 'InvalidateCache'
   retries: 3
