@@ -1,0 +1,6 @@
+---
+dependencies: []
+
+galaxy_info:
+  role_name: "cognito-user-pool"
+  description: "Cognito user pool with web and service clients, user ids assigned by a user service"

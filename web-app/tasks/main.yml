@@ -8,6 +8,10 @@
       name: 'base'
 
 - set_fact:
+    params: '{{ params | combine(auth_params) }}'
+  when: auth_params is defined
+
+- set_fact:
     files: "{{ role_path }}/files"
 
 - include_role:
@@ -76,6 +80,20 @@
       {{ ('Error: ' + _check.error) if _check.error is defined else '' }}
   failed_when: not (_check.ok | default(false))
 
+- set_fact:
+    api_enabled: '{{ (settings | default({})).get("EnableApi", false) | bool }}'
+
+- include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ files }}/api.yaml'
+    type: API
+  when: api_enabled
+
+- set_fact:
+    params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
+  when: api_enabled
+
 - include_role: 
     name: alpha-deploy-lib/deploy-cloudformation
   vars:
@@ -103,6 +121,7 @@
       PublicHostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       HostedZoneName: '{{ params["PublicHostedZoneName"] }}'
       ApplicationServiceName: '{{ params["ApplicationServiceName"] | default("user-svc") }}'
+      ApiEnabled: '{{ api_enabled }}'
       Region: '{{ params["Region"] }}'
 
 - name: 'Copy index.html to template'

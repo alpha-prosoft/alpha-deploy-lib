@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: API of a web application, served by its CloudFront distribution under /api
+Parameters:
+  EnvironmentNameLower:
+    Type: String
+  EnvironmentNameUpper:
+    Type: String
+  ResourceName:
+    Type: String
+  AuthUserPoolId:
+    Type: String
+
+Resources:
+  InvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "apigateway.amazonaws.com"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: "lambda"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "lambda:InvokeFunction"
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentNameUpper}-*"
+
+  RestAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: !Sub "${ResourceName} API"
+      Name: !Sub "${EnvironmentNameLower}-${ResourceName}-api"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Body:
+        swagger: "2.0"
+        info:
+          version: "1"
+          title: !Sub "${EnvironmentNameLower}-${ResourceName}-api"
+        schemes:
+          - "https"
+        paths:
+{% for route in ['private', 'public'] %}
+          /{{ route }}/{stage}/{function}/{other+}:
+            post:
+              produces:
+                - "application/json"
+              parameters:
+                - name: "function"
+                  in: "path"
+                  required: true
+                  type: "string"
+                - name: "stage"
+                  in: "path"
+                  required: true
+                  type: "string"
+                - name: "other"
+                  in: "path"
+                  required: true
+                  type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+{% if route == 'private' %}
+              security:
+                - cognito: [ ]
+{% endif %}
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                credentials: !GetAtt InvokeRole.Arn
+                uri: "arn:aws:apigateway:{{ params['Region'] }}:lambda:path/2015-03-31/functions/arn:aws:lambda:{{ params['Region'] }}:{{ params['AccountId'] }}:function:{environment}-{function}:BUILD/invocations"
+                responses:
+                  default:
+                    statusCode: "200"
+                requestParameters:
+                  integration.request.path.function: "method.request.path.function"
+                  integration.request.path.environment: "stageVariables.EnvironmentNameUpper"
+                  integration.request.path.stage: "method.request.path.stage"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+{% endfor %}
+        securityDefinitions:
+          cognito:
+            type: "apiKey"
+            name: "X-Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "cognito_user_pools"
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+                - "arn:aws:cognito-idp:{{ params['Region'] }}:{{ params['AccountId'] }}:userpool/{{ params['AuthUserPoolId'] }}"
+              type: "cognito_user_pools"
+
+  RestAPIDeployment{{ params['BuildId'] }}:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref RestAPI
+
+  RestAPIStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref RestAPIDeployment{{ params['BuildId'] }}
+      RestApiId: !Ref RestAPI
+      StageName: api
+      Variables:
+        EnvironmentNameUpper: !Ref EnvironmentNameUpper
+
+Outputs:
+  ApiId:
+    Value: !Ref RestAPI
+  ApiDomainName:
+    Value: !Sub "${RestAPI}.execute-api.${AWS::Region}.amazonaws.com"

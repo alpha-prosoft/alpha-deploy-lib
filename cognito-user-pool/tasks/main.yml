@@ -1,0 +1,18 @@
+- set_fact:
+    user_pool_template: '{{ role_path }}/files/user-pool.yaml'
+
+- name: 'Deploy user pool {{ pool_name }}'
+  include_role:
+    name: alpha-deploy-lib/deploy-cloudformation
+  vars:
+    cloud_formation: '{{ user_pool_template }}'
+    type: AUTH
+    stack_name: '{{ params["EnvironmentNameUpper"] }}-AUTH-{{ pool_name }}-stack'
+    additional_params:
+      PoolName: '{{ pool_name }}'
+      UserServiceName: '{{ user_service }}'
+
+- name: 'Use user pool {{ pool_name }} for the rest of the deployment'
+  set_fact:
+    auth_params: '{{ cloud_formation_output["stack_outputs"] }}'
+    params: '{{ params | combine(cloud_formation_output["stack_outputs"]) }}'

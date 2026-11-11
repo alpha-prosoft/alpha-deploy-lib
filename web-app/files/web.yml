@@ -103,7 +103,13 @@ Parameters:
     Type: String
     Default: ""
 
+  ApiDomainName:
+    Type: String
+    Default: ""
+
 Conditions:
+  HasApi: !Not [ !Equals [ !Ref ApiDomainName, "" ] ]
+
   HasWildcardSubdomainName: !Not [ !Equals [ !Ref WildcardSubdomainName, "" ] ]
 
   HasAliasDomainName: !Not [ !Equals [ !Ref AliasDomainName, "" ] ]
@@ -173,6 +179,15 @@ Resources:
             DomainName: !GetAtt S3Bucket.RegionalDomainName
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${S3BucketOriginAccessIdentiy}'
+          - !If
+            - HasApi
+            - Id: api
+              DomainName: !Ref ApiDomainName
+              CustomOriginConfig:
+                OriginProtocolPolicy: https-only
+                OriginSSLProtocols:
+                  - TLSv1.2
+            - !Ref AWS::NoValue
         Enabled: true
         HttpVersion: 'http2'
         Aliases:
@@ -191,13 +206,15 @@ Resources:
           - !If [ HasAliasDomainName9, !Ref AliasDomainName9, !Ref AWS::NoValue ]
           - !If [ HasWildcardSubdomainName, !Join [ "", [ "*.", !Ref WildcardSubdomainName, ".", !Ref PublicHostedZoneName ] ], !Ref AWS::NoValue ]
         DefaultRootObject: index.html
-        CustomErrorResponses:
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
+        CustomErrorResponses: !If
+          - HasApi
+          - !Ref AWS::NoValue
+          - - ErrorCode: 404
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+            - ErrorCode: 403
+              ResponseCode: 200
+              ResponsePagePath: /index.html
         DefaultCacheBehavior:
           AllowedMethods:
             - GET
@@ -208,6 +225,30 @@ Resources:
             Cookies:
               Forward: none
           ViewerProtocolPolicy: redirect-to-https
+          FunctionAssociations: !If
+            - HasApi
+            - - EventType: viewer-request
+                FunctionARN: !GetAtt PageRouteFunction.FunctionMetadata.FunctionARN
+            - !Ref AWS::NoValue
+        CacheBehaviors: !If
+          - HasApi
+          - - PathPattern: /api/*
+              TargetOriginId: api
+              AllowedMethods:
+                - GET
+                - HEAD
+                - OPTIONS
+                - PUT
+                - PATCH
+                - POST
+                - DELETE
+              CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+              OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+              ViewerProtocolPolicy: https-only
+              FunctionAssociations:
+                - EventType: viewer-request
+                  FunctionARN: !GetAtt ApiRouteFunction.FunctionMetadata.FunctionARN
+          - !Ref AWS::NoValue
         PriceClass: PriceClass_100
         ViewerCertificate:
           AcmCertificateArn: !If
@@ -216,6 +257,43 @@ Resources:
             - !Ref GlobalCertificateArn
           MinimumProtocolVersion: TLSv1.2_2019
           SslSupportMethod: sni-only
+
+  ApiRouteFunction:
+    Type: AWS::CloudFront::Function
+    Condition: HasApi
+    Properties:
+      Name: !Sub "${EnvironmentNameLower}-${ResourceName}-api-route"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Requests without a token go to the public API route
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          if (!request.headers['x-authorization']) {
+            request.uri = request.uri.replace(/^\/api\/private\//, '/api/public/');
+          }
+          return request;
+        }
+
+  PageRouteFunction:
+    Type: AWS::CloudFront::Function
+    Condition: HasApi
+    Properties:
+      Name: !Sub "${EnvironmentNameLower}-${ResourceName}-page-route"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Application routes are served by index.html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var file = request.uri.substring(request.uri.lastIndexOf('/') + 1);
+          if (file.indexOf('.') === -1) {
+            request.uri = '/index.html';
+          }
+          return request;
+        }
 
   CloudFrontDNSRecord:
     Type: 'AWS::Route53::RecordSet'

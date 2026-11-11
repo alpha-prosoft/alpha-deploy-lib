@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cognito user pool
+Parameters:
+  EnvironmentNameUpper:
+    Type: String
+
+  EnvironmentNameLower:
+    Type: String
+
+  PublicHostedZoneName:
+    Type: String
+
+  PoolName:
+    Type: String
+
+  UserServiceName:
+    Type: String
+    Description: Lambda service that owns users (create-user, get-by-email), invoked as <ENV>-<name>:BUILD
+
+  AdminGroupName:
+    Type: String
+    Default: roles-admin
+
+  EmailIdentityArn:
+    Type: String
+    Default: ''
+
+Conditions:
+  HasSESEmailIdentity: !Not
+    - !Equals
+      - !Ref EmailIdentityArn
+      - ''
+
+Resources:
+  CognitoLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: "InvokeUserService"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowLambdaInvoke
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:*:${AWS::AccountId}:function:${EnvironmentNameUpper}-${UserServiceName}:BUILD"
+              - Sid: AllowCognitoUpdate
+                Effect: Allow
+                Action: cognito-idp:AdminUpdateUserAttributes
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+  PreSignupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentNameUpper}-${PoolName}-pre-signup"
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              attributes = event['request']['userAttributes']
+              if 'email' not in attributes:
+                  raise Exception('Email is missing in request')
+              if attributes['email'] != event.get('userName'):
+                  raise Exception('Username and email must match')
+              return event
+      Handler: index.handler
+      Role: !GetAtt CognitoLambdaRole.Arn
+      Runtime: python3.13
+
+  PreTokenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentNameUpper}-${PoolName}-pre-token"
+      Environment:
+        Variables:
+          UserServiceFunction: !Sub "${EnvironmentNameUpper}-${UserServiceName}:BUILD"
+          PublicHostedZoneName: !Ref PublicHostedZoneName
+      Code:
+        ZipFile: |
+          import json
+          import logging
+          import os
+          import uuid
+
+          import boto3
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          lambda_client = boto3.client('lambda')
+          cognito_idp = boto3.client('cognito-idp')
+          user_service = os.environ['UserServiceFunction']
+          zone = os.environ['PublicHostedZoneName']
+
+
+          def new_id():
+              return '#' + str(uuid.uuid4())
+
+
+          def invoke(interaction_id, body):
+              request = {'service': user_service,
+                         'request-id': new_id(),
+                         'interaction-id': interaction_id,
+                         'meta': {'realm': 'prod'}}
+              request.update(body)
+              response = lambda_client.invoke(FunctionName=user_service,
+                                              InvocationType='RequestResponse',
+                                              Payload=json.dumps(request))
+              return json.loads(response['Payload'].read().decode('utf-8'))
+
+
+          def find_user(interaction_id, email):
+              response = invoke(interaction_id,
+                                {'query': {'query-id': ':get-by-email', 'email': email}})
+              if 'result' not in response:
+                  raise Exception('User lookup failed: ' + json.dumps(response))
+              return response['result']
+
+
+          def resolve_user_id(email):
+              interaction_id = new_id()
+              user = find_user(interaction_id, email)
+              if user is None:
+                  invoke(interaction_id,
+                         {'commands': [{'cmd-id': ':create-user',
+                                        'id': new_id(),
+                                        'attrs': {'email': email}}]})
+                  user = find_user(interaction_id, email)
+              if user is None or 'id' not in user:
+                  raise Exception('Unable to assign user id')
+              return user['id']
+
+
+          def handler(event, context):
+              attributes = event['request']['userAttributes']
+              email = attributes['email']
+              if email.endswith(zone) and 'svc' in email:
+                  return event
+              if 'custom:user_id' in attributes:
+                  return event
+              try:
+                  user_id = resolve_user_id(email)
+              except lambda_client.exceptions.ResourceNotFoundException:
+                  logger.warning('%s is not deployed, token issued without user id', user_service)
+                  return event
+              event['response'] = {'claimsOverrideDetails':
+                                   {'claimsToAddOrOverride': {'custom:user_id': user_id}}}
+              cognito_idp.admin_update_user_attributes(
+                  UserPoolId=event['userPoolId'],
+                  Username=event['userName'],
+                  UserAttributes=[{'Name': 'custom:user_id', 'Value': user_id}])
+              return event
+      Handler: index.handler
+      Role: !GetAtt CognitoLambdaRole.Arn
+      Runtime: python3.13
+      Timeout: 15
+
+  PreSignupInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PreSignupFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreTokenInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PreTokenFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: False
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: !If
+          - HasSESEmailIdentity
+          - "DEVELOPER"
+          - "COGNITO_DEFAULT"
+        SourceArn: !If
+          - HasSESEmailIdentity
+          - !Ref EmailIdentityArn
+          - !Ref AWS::NoValue
+        From: !If
+          - HasSESEmailIdentity
+          - !Sub 'no-reply@${PublicHostedZoneName}'
+          - !Ref AWS::NoValue
+      MfaConfiguration: "OFF"
+      LambdaConfig:
+        PreSignUp: !GetAtt PreSignupFunction.Arn
+        PreTokenGeneration: !GetAtt PreTokenFunction.Arn
+      Schema:
+        - Name: email
+          Mutable: true
+          Required: true
+        - Name: user_id
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: True
+          RequireNumbers: True
+          RequireUppercase: True
+          TemporaryPasswordValidityDays: 1
+      UserPoolName: !Sub "${EnvironmentNameLower}-${PoolName}-userpool"
+
+  ServiceUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      AllowedOAuthFlowsUserPoolClient: True
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs:
+        - !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      ClientName: !Sub "${EnvironmentNameLower}-${PoolName}-client"
+      DefaultRedirectURI: !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      GenerateSecret: true
+      SupportedIdentityProviders:
+        - COGNITO
+      UserPoolId: !Ref UserPool
+
+  WebUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      AllowedOAuthFlowsUserPoolClient: True
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs:
+        - !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      ClientName: !Sub "${EnvironmentNameLower}-${PoolName}-web-client"
+      DefaultRedirectURI: !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      GenerateSecret: False
+      SupportedIdentityProviders:
+        - COGNITO
+      UserPoolId: !Ref UserPool
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${AWS::AccountId}-${EnvironmentNameLower}-${PoolName}"
+      UserPoolId: !Ref UserPool
+
+  NonInteractiveUserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: "non-interactive"
+      UserPoolId: !Ref UserPool
+
+  AdminUserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: !Ref AdminGroupName
+      UserPoolId: !Ref UserPool
+
+Outputs:
+  AuthUserPoolDomain:
+    Value: !Sub "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+
+  AuthUserPoolId:
+    Value: !Ref UserPool
+
+  WebUserPoolId:
+    Value: !Ref UserPool
+
+  AuthUserPoolClientId:
+    Value: !Ref ServiceUserPoolClient
+
+  WebUserPoolClientId:
+    Value: !Ref WebUserPoolClient
