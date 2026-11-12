@@ -7,6 +7,10 @@
     - type: 'CORE'
       name: 'base'
 
+- set_fact:
+    params: '{{ params | combine(auth_params) }}'
+  when: auth_params is defined
+
 
 - name: "Create machine user (idempotent)"
   environment: '{{ params }}'

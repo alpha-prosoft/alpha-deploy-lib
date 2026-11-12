@@ -270,7 +270,10 @@ Resources:
       FunctionCode: |
         function handler(event) {
           var request = event.request;
-          if (!request.headers['x-authorization']) {
+          var header = request.headers['x-authorization'];
+          var token = header ? header.value : '';
+          if (!token || token === 'null' || token === 'undefined') {
+            delete request.headers['x-authorization'];
             request.uri = request.uri.replace(/^\/api\/private\//, '/api/public/');
           }
           return request;

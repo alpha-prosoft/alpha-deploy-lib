@@ -16,6 +16,10 @@
         name: 'dynamodb-svc'
 
 - set_fact:
+    params: '{{ params | combine(auth_params) }}'
+  when: auth_params is defined
+
+- set_fact:
     params: '{{ params | combine({ "S3LambdaObjectName" : function_name + "-" + params["Version"],
                                    "MainClass" : lookup("env", "MAIN_CLASS")})}}'
 - set_fact:
@@ -72,6 +76,7 @@
       --client-id "{{ params['AuthUserPoolClientId'] }}" \
       --query "UserPoolClient.ClientSecret" --output text
   register: client_secret
+  no_log: true
 
 - block:
     - copy:

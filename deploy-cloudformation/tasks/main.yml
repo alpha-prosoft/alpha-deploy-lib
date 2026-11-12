@@ -59,9 +59,9 @@
   shell: |
     import yaml
     import json
-    params = json.loads("""{{ params | to_json }}""")
+    params = json.loads(r"""{{ params | to_json }}""")
     rendered_cloud_formation = "{{ rendered_cloud_formation }}"
-    additional_params = json.loads("""{{ additional_params | default({}) | to_json }}""")
+    additional_params = json.loads(r"""{{ additional_params | default({}) | to_json }}""")
     build_id = "{{ params["BuildId"] }}"
     with open(rendered_cloud_formation, "r") as f:
         lines = f.readlines()

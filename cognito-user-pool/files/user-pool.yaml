@@ -108,7 +108,10 @@ Resources:
               request = {'service': user_service,
                          'request-id': new_id(),
                          'interaction-id': interaction_id,
-                         'meta': {'realm': 'prod'}}
+                         'meta': {'realm': 'prod',
+                                  'user': {'id': 'cognito-pre-token',
+                                           'role': ':non-interactive',
+                                           'roles': [':non-interactive']}}}
               request.update(body)
               response = lambda_client.invoke(FunctionName=user_service,
                                               InvocationType='RequestResponse',
