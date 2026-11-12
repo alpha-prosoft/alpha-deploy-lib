@@ -103,6 +103,65 @@
 - set_fact:
     params: '{{ params | combine( cloud_formation_output["stack_outputs"] ) }}'
 
+- set_fact:
+    application_ensured: '{{ (settings | default({})).get("EnsureApplication", false) | bool }}'
+
+- name: 'Ensure the application of the web site exists'
+  when: application_ensured
+  shell: |
+    import json, uuid, boto3
+
+    SETTINGS = json.loads(r"""{{ settings | default({}) | to_json }}""")
+    NAME = SETTINGS.get("ApplicationName") or "{{ params['ResourceName'] }}"
+    FUNCTION = "{{ params['EnvironmentNameUpper'] }}-{{ params['ApplicationServiceName'] }}:BUILD"
+
+    client = boto3.client("lambda", region_name="{{ params['Region'] }}")
+
+    def call(body):
+        request = {"request-id": "#" + str(uuid.uuid4()),
+                   "interaction-id": "#" + str(uuid.uuid4()),
+                   "meta": {"realm": "prod",
+                            "user": {"id": "deployment",
+                                     "role": ":non-interactive",
+                                     "roles": [":non-interactive"]}}}
+        request.update(body)
+        response = client.invoke(FunctionName=FUNCTION, Payload=json.dumps(request))
+        answer = json.loads(response["Payload"].read().decode("utf-8"))
+        if response.get("FunctionError") or "result" not in answer:
+            raise Exception("%s answered %s" % (FUNCTION, json.dumps(answer)[:1000]))
+        return answer["result"]
+
+    def find():
+        return call({"query": {"query-id": ":application->fetch-by-name", "name": NAME}})
+
+    application = find()
+    created = application is None
+    if created:
+        application_id = str(uuid.uuid4())
+        attrs = {"name": NAME, "title": SETTINGS.get("ApplicationTitle") or NAME}
+        if SETTINGS.get("ApplicationFeatures"):
+            attrs["features"] = [":" + feature for feature in SETTINGS["ApplicationFeatures"]]
+        call({"commands": [{"cmd-id": ":create-application", "id": "#" + application_id, "attrs": attrs}]})
+        if SETTINGS.get("ApplicationOwner"):
+            call({"commands": [{"cmd-id": ":add-admin", "id": "#" + application_id,
+                                "attrs": {"email": SETTINGS["ApplicationOwner"]}}]})
+    else:
+        application_id = application["id"].lstrip("#")
+
+    print(json.dumps({"name": NAME, "id": application_id, "created": created}))
+  args:
+    executable: /usr/bin/python3
+  environment: '{{ params }}'
+  register: _application
+
+- set_fact:
+    application: '{{ _application.stdout_lines | last | from_json }}'
+  when: application_ensured
+
+- debug:
+    msg: 'Application {{ application.name }} ({{ application.id }}){{ " created" if application.created else " exists" }}'
+  when: application_ensured
+
 - name: 'Read commit id baked into the build image'
   shell: 'cat /dist/commit-id 2>/dev/null || echo unknown'
   register: commit_id_result
@@ -123,6 +182,10 @@
       ApplicationServiceName: '{{ params["ApplicationServiceName"] | default("user-svc") }}'
       ApiEnabled: '{{ api_enabled }}'
       Region: '{{ params["Region"] }}'
+
+- set_fact:
+    web_config: '{{ web_config | combine({"ApplicationName": application.name, "ApplicationId": application.id}) }}'
+  when: application_ensured
 
 - name: 'Copy index.html to template'
   shell: |
