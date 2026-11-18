@@ -241,6 +241,11 @@ Resources:
         - !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
       ClientName: !Sub "${EnvironmentNameLower}-${PoolName}-client"
       DefaultRedirectURI: !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      ReadAttributes:
+        - email
+        - email_verified
+        - custom:user_id
+      WriteAttributes: []
       GenerateSecret: true
       SupportedIdentityProviders:
         - COGNITO
@@ -265,6 +270,12 @@ Resources:
         - !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
       ClientName: !Sub "${EnvironmentNameLower}-${PoolName}-web-client"
       DefaultRedirectURI: !Sub "https://login.${PublicHostedZoneName}/oauth2/idpresponse"
+      ReadAttributes:
+        - email
+        - email_verified
+        - custom:user_id
+      WriteAttributes:
+        - email
       GenerateSecret: False
       SupportedIdentityProviders:
         - COGNITO
