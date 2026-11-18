@@ -245,7 +245,8 @@ Resources:
         - email
         - email_verified
         - custom:user_id
-      WriteAttributes: []
+      WriteAttributes:
+        - email
       GenerateSecret: true
       SupportedIdentityProviders:
         - COGNITO
